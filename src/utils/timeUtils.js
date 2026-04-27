@@ -229,6 +229,36 @@ export function getLast30DaysSessions(sessions) {
 }
 
 /**
+ * Son 7 günün günlük çalışma saatlerini hesapla (bugün dahil, geriye doğru)
+ */
+export function getLast7DaysData(sessions) {
+  const result = [];
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  for (let i = 6; i >= 0; i--) {
+    const dayStart = new Date();
+    dayStart.setDate(dayStart.getDate() - i);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(dayStart);
+    dayEnd.setDate(dayStart.getDate() + 1);
+
+    const daySessions = sessions.filter(s => {
+      if (!s.endTime) return false;
+      const d = new Date(s.startTime);
+      return d >= dayStart && d < dayEnd;
+    });
+
+    const totalMs = calculateTotalDuration(daySessions);
+    result.push({
+      day: i === 0 ? 'Today' : i === 1 ? 'Yst' : dayNames[dayStart.getDay()],
+      hours: msToHours(totalMs),
+      ms: totalMs,
+    });
+  }
+  return result;
+}
+
+/**
  * Son aktif zamanı güzel formatla
  */
 export function getLastActiveTime(sessions) {

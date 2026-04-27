@@ -4,9 +4,10 @@ import { useApp } from '../context/AppContext';
 import { formatDuration } from '../utils/timeUtils';
 
 /**
- * Dashboard'daki büyük yeşil zamanlayıcı kartı
+ * Dashboard'daki yeşil zamanlayıcı kartı
+ * compact=true: küçük versiyon (tek sütun, Row 3 col-3 için)
  */
-export default function ActiveTimerCard() {
+export default function ActiveTimerCard({ compact = false }) {
   const { activeSession, projects, pauseTimer, resumeTimer, stopTimer } = useApp();
   const navigate = useNavigate();
   const [elapsed, setElapsed] = useState(0);
@@ -32,17 +33,18 @@ export default function ActiveTimerCard() {
     return () => clearInterval(interval);
   }, [activeSession]);
 
+  // ─── Empty State ───
   if (!activeSession) {
     return (
-      <div className="bg-gradient-to-br from-primary-fixed to-primary-fixed-dim rounded-2xl p-8 flex flex-col items-center justify-center min-h-[200px]">
-        <span className="material-symbols-outlined text-[40px] text-primary mb-3" style={{ fontVariationSettings: "'FILL' 1" }}>
+      <div className={`bg-gradient-to-br from-primary-fixed to-primary-fixed-dim rounded-2xl flex flex-col items-center justify-center h-full ${compact ? 'p-5 min-h-[200px]' : 'p-8 min-h-[200px]'}`}>
+        <span className={`material-symbols-outlined text-primary mb-2 ${compact ? 'text-[32px]' : 'text-[40px]'}`} style={{ fontVariationSettings: "'FILL' 1" }}>
           timer
         </span>
-        <p className="text-on-surface font-semibold text-lg mb-1">No Active Timer</p>
-        <p className="text-on-surface-variant text-sm mb-4">Start tracking time on a project</p>
+        <p className={`text-on-surface font-semibold mb-1 ${compact ? 'text-base' : 'text-lg'}`}>No Active Timer</p>
+        <p className="text-on-surface-variant text-xs mb-3">Start tracking time on a project</p>
         <button
           onClick={() => navigate('/projects')}
-          className="bg-primary text-on-primary px-5 py-2 rounded-full text-sm font-semibold hover:bg-primary/90 transition-all"
+          className="bg-primary text-on-primary px-4 py-1.5 rounded-full text-xs font-semibold hover:bg-primary/90 transition-all"
         >
           Browse Projects
         </button>
@@ -65,6 +67,71 @@ export default function ActiveTimerCard() {
     }
   };
 
+  // ─── Compact Version ───
+  if (compact) {
+    return (
+      <div className="bg-gradient-to-br from-primary to-primary-container rounded-2xl p-6 lg:p-7 text-on-primary relative overflow-hidden h-full flex flex-col justify-center min-h-[300px]">
+        {/* Background decoration */}
+        <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -translate-y-1/3 translate-x-1/3" />
+
+        <div className="relative z-10 flex flex-col justify-center h-full gap-5">
+          <div>
+            {/* Status */}
+            <div className="flex items-center gap-2 mb-3">
+              {activeSession.isPaused ? (
+                <span className="material-symbols-outlined text-[14px] text-on-primary/80">pause</span>
+              ) : (
+                <span className="w-2 h-2 rounded-full bg-on-primary animate-pulse-dot" />
+              )}
+              <span className="text-[11px] font-semibold uppercase tracking-widest text-on-primary/80">
+                {activeSession.isPaused ? 'Paused' : 'Active'}
+              </span>
+            </div>
+
+            {/* Project name */}
+            <h3 className="font-headline text-xl font-bold text-on-primary mb-1 truncate">
+              {project?.name || 'Unknown Project'}
+            </h3>
+            <p className="text-sm text-on-primary/70">
+              {project?.clientName || 'Working...'}
+            </p>
+          </div>
+
+          <div>
+            {/* Timer */}
+            <p className="font-headline text-4xl lg:text-5xl font-bold font-mono-tabular tracking-tight text-on-primary mb-1">
+              {formatDuration(elapsed)}
+            </p>
+            <p className="text-xs text-on-primary/60">Started {startedAt}</p>
+          </div>
+
+          {/* Controls */}
+          <div className="flex items-center gap-3 mt-2">
+            <button
+              id="btn-dashboard-toggle"
+              onClick={handleToggle}
+              className="flex items-center justify-center gap-2 bg-white/15 hover:bg-white/25 px-5 py-2.5 rounded-full text-sm font-semibold transition-all border border-white/20 flex-1"
+            >
+              <span className="material-symbols-outlined text-[18px]">
+                {activeSession.isPaused ? 'play_arrow' : 'pause'}
+              </span>
+              {activeSession.isPaused ? 'Resume' : 'Pause'}
+            </button>
+            <button
+              id="btn-dashboard-stop"
+              onClick={() => stopTimer()}
+              className="flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 px-5 py-2.5 rounded-full text-sm font-semibold transition-all border border-white/15 flex-1"
+            >
+              <span className="material-symbols-outlined text-[18px]">stop_circle</span>
+              Stop
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Full Version (original) ───
   return (
     <div className="bg-gradient-to-br from-primary to-primary-container rounded-2xl p-6 text-on-primary relative overflow-hidden">
       {/* Background decoration */}
@@ -106,7 +173,7 @@ export default function ActiveTimerCard() {
         <p className="text-xs text-on-primary/60 mb-5">Started at {startedAt}</p>
 
         {/* Controls */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           <button
             id="btn-dashboard-toggle"
             onClick={handleToggle}

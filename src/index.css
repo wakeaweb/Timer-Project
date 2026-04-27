@@ -38,6 +38,15 @@ h1, h2, h3, h4, h5, h6,
   background: #74796e;
 }
 
+/* Hide scrollbar utility (for horizontal tab scroll) */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 /* Animations */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(8px); }
@@ -68,4 +77,41 @@ h1, h2, h3, h4, h5, h6,
 ::selection {
   background: #78a886;
   color: #d8f0de;
+}
+
+/* Safe area for bottom nav on notched devices */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Screen reader only */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Prevent body scroll when mobile sidebar is open */
+body.sidebar-open {
+  overflow: hidden;
+}
+
+/* Mobile-specific touch improvements */
+@media (max-width: 1023px) {
+  /* Better touch targets */
+  button, a {
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  /* Smoother scrolling */
+  .overflow-y-auto,
+  .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+  }
 }

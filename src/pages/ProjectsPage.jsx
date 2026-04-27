@@ -26,6 +26,79 @@ function InlineTimer({ session }) {
   return <span className="font-mono-tabular tracking-wide">{formatDuration(elapsed)}</span>;
 }
 
+// Mobile project card for list view
+function MobileProjectCard({ project, hours, status, activeSession, onStart, onPause, onResume, onStop, onClick }) {
+  const isActive = activeSession?.projectId === project.id;
+
+  return (
+    <div
+      onClick={onClick}
+      className="bg-surface-container-lowest border border-outline-variant/20 rounded-xl p-4 cursor-pointer transition-all hover:shadow-card active:scale-[0.99]"
+    >
+      <div className="flex items-start justify-between mb-2">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+          <div className="w-1 h-10 rounded-full shrink-0" style={{ backgroundColor: project.color }} />
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-on-surface truncate">{project.name}</p>
+            <p className="text-xs text-on-surface-variant truncate">{project.clientName || 'No client'}</p>
+          </div>
+        </div>
+        <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0 ml-2 ${status.color}`}>
+          {isActive && !activeSession.isPaused ? (
+            <InlineTimer session={activeSession} />
+          ) : (
+            status.label
+          )}
+        </span>
+      </div>
+      <div className="flex items-center justify-between mt-3">
+        <div className="flex items-center gap-3">
+          <span className="font-mono-tabular text-sm font-semibold text-on-surface">
+            {hours}<span className="text-xs font-normal text-on-surface-variant ml-0.5">h</span>
+          </span>
+          {project.type && (
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-md" style={{ backgroundColor: project.color + '15', color: project.color }}>
+              {project.type}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+          {isActive ? (
+            <>
+              <button
+                onClick={() => activeSession.isPaused ? onResume() : onPause()}
+                className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${activeSession.isPaused
+                    ? 'bg-tertiary text-on-tertiary hover:bg-tertiary/90'
+                    : 'bg-surface-container-high text-on-surface hover:bg-surface-container-highest'
+                  }`}
+              >
+                <span className="material-symbols-outlined text-[16px]">
+                  {activeSession.isPaused ? 'play_arrow' : 'pause'}
+                </span>
+              </button>
+              <button
+                onClick={onStop}
+                className="w-8 h-8 rounded-full bg-error/10 text-error hover:bg-error/20 flex items-center justify-center transition-colors"
+              >
+                <span className="material-symbols-outlined text-[16px]">stop</span>
+              </button>
+            </>
+          ) : (
+            project.status === 'active' && (
+              <button
+                onClick={() => onStart(project.id)}
+                className="w-8 h-8 rounded-full bg-primary/10 text-primary hover:bg-primary/20 inline-flex items-center justify-center transition-colors"
+              >
+                <span className="material-symbols-outlined text-[16px]">play_arrow</span>
+              </button>
+            )
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ProjectsPage() {
   const { projects, sessions, activeSession, removeProject, startTimer, pauseTimer, resumeTimer, stopTimer } = useApp();
   const navigate = useNavigate();
@@ -71,9 +144,9 @@ export default function ProjectsPage() {
   return (
     <div className="max-w-5xl">
       {/* Header */}
-      <div className="flex items-center justify-between mt-4 mb-8">
+      <div className="flex items-center justify-between mt-4 mb-6 lg:mb-8">
         <div>
-          <h1 className="font-headline text-[2rem] font-bold text-on-surface">Projects</h1>
+          <h1 className="font-headline text-2xl lg:text-[2rem] font-bold text-on-surface">Projects</h1>
           <p className="text-sm text-on-surface-variant mt-0.5">
             Manage your projects and track progress
           </p>
@@ -81,7 +154,7 @@ export default function ProjectsPage() {
         <button
           id="btn-new-project"
           onClick={() => navigate('/new-project')}
-          className="flex items-center gap-2 bg-primary text-on-primary px-5 py-2.5 rounded-full font-semibold text-sm hover:bg-primary/90 transition-all shadow-card hover:shadow-lg active:scale-[0.98]"
+          className="hidden sm:flex items-center gap-2 bg-primary text-on-primary px-5 py-2.5 rounded-full font-semibold text-sm hover:bg-primary/90 transition-all shadow-card hover:shadow-lg active:scale-[0.98]"
         >
           <span className="material-symbols-outlined text-[18px]">add</span>
           New Project
@@ -89,137 +162,157 @@ export default function ProjectsPage() {
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex gap-1 mb-6 bg-surface-container rounded-xl p-1">
+      <div className="flex gap-1 mb-4 lg:mb-6 bg-surface-container rounded-xl p-1">
         {['all', 'active', 'completed'].map(f => (
           <button
             key={f}
             onClick={() => setFilter(f)}
-            className={`flex-1 py-2 px-4 rounded-lg text-sm font-semibold transition-all ${filter === f
+            className={`flex-1 py-2 px-3 lg:px-4 rounded-lg text-xs sm:text-sm font-semibold transition-all ${filter === f
                 ? 'bg-surface-container-lowest shadow-sm text-on-surface'
                 : 'text-on-surface-variant hover:text-on-surface'
               }`}
           >
-            {f === 'all' ? 'All' : f === 'active' ? 'Active' : 'Completed'} ({counts[f]})
+            {f === 'all' ? 'All' : f === 'active' ? 'Active' : 'Done'} ({counts[f]})
           </button>
         ))}
       </div>
 
-      {/* Project List (Table) */}
       {sorted.length > 0 ? (
-        <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-2xl overflow-hidden">
-          <table className="w-full">
-            <thead>
-              <tr className="text-left text-xs font-semibold uppercase tracking-wider text-on-surface-variant border-b border-outline-variant/30 bg-surface-container/50">
-                <th className="py-3 pl-5 pr-4">Project</th>
-                <th className="py-3 pr-4">Client</th>
-                <th className="py-3 pr-4">Type</th>
-                <th className="py-3 pr-4 text-right">Hours</th>
-                <th className="py-3 pr-4 text-right">Status</th>
-                <th className="py-3 pr-5 text-right w-32">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.map(project => {
-                const hours = getProjectHours(project.id);
-                const status = getStatus(project);
-                return (
-                  <tr
-                    key={project.id}
-                    onClick={() => navigate(`/project/${project.id}`)}
-                    className="border-b border-outline-variant/15 hover:bg-surface-container-low/60 transition-colors cursor-pointer group"
-                  >
-                    <td className="py-4 pl-5 pr-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-1 h-10 rounded-full shrink-0" style={{ backgroundColor: project.color }} />
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-on-surface group-hover:text-primary transition-colors truncate">
-                            {project.name}
-                          </p>
-                          {project.estimatedHours > 0 && (
-                            <div className="flex items-center gap-2 mt-1">
-                              <div className="h-1 w-20 bg-surface-container-high rounded-full overflow-hidden">
-                                <div
-                                  className="h-full bg-primary rounded-full"
-                                  style={{ width: `${Math.min(100, (hours / project.estimatedHours) * 100)}%` }}
-                                />
+        <>
+          {/* Mobile Card View */}
+          <div className="lg:hidden space-y-3">
+            {sorted.map(project => (
+              <MobileProjectCard
+                key={project.id}
+                project={project}
+                hours={getProjectHours(project.id)}
+                status={getStatus(project)}
+                activeSession={activeSession}
+                onStart={startTimer}
+                onPause={pauseTimer}
+                onResume={resumeTimer}
+                onStop={stopTimer}
+                onClick={() => navigate(`/project/${project.id}`)}
+              />
+            ))}
+          </div>
+
+          {/* Desktop Table View */}
+          <div className="hidden lg:block bg-surface-container-lowest border border-outline-variant/20 rounded-2xl overflow-hidden">
+            <table className="w-full">
+              <thead>
+                <tr className="text-left text-xs font-semibold uppercase tracking-wider text-on-surface-variant border-b border-outline-variant/30 bg-surface-container/50">
+                  <th className="py-3 pl-5 pr-4">Project</th>
+                  <th className="py-3 pr-4">Client</th>
+                  <th className="py-3 pr-4">Type</th>
+                  <th className="py-3 pr-4 text-right">Hours</th>
+                  <th className="py-3 pr-4 text-right">Status</th>
+                  <th className="py-3 pr-5 text-right w-32">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sorted.map(project => {
+                  const hours = getProjectHours(project.id);
+                  const status = getStatus(project);
+                  return (
+                    <tr
+                      key={project.id}
+                      onClick={() => navigate(`/project/${project.id}`)}
+                      className="border-b border-outline-variant/15 hover:bg-surface-container-low/60 transition-colors cursor-pointer group"
+                    >
+                      <td className="py-4 pl-5 pr-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-1 h-10 rounded-full shrink-0" style={{ backgroundColor: project.color }} />
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-on-surface group-hover:text-primary transition-colors truncate">
+                              {project.name}
+                            </p>
+                            {project.estimatedHours > 0 && (
+                              <div className="flex items-center gap-2 mt-1">
+                                <div className="h-1 w-20 bg-surface-container-high rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full bg-primary rounded-full"
+                                    style={{ width: `${Math.min(100, (hours / project.estimatedHours) * 100)}%` }}
+                                  />
+                                </div>
+                                <span className="text-[10px] text-on-surface-variant">
+                                  {Math.round((hours / project.estimatedHours) * 100)}%
+                                </span>
                               </div>
-                              <span className="text-[10px] text-on-surface-variant">
-                                {Math.round((hours / project.estimatedHours) * 100)}%
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-4 pr-4">
+                        <span className="text-sm text-on-surface-variant">{project.clientName || '—'}</span>
+                      </td>
+                      <td className="py-4 pr-4">
+                        {project.type ? (
+                          <span className="text-xs font-semibold px-2 py-0.5 rounded-md" style={{ backgroundColor: project.color + '15', color: project.color }}>
+                            {project.type}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-on-surface-variant">—</span>
+                        )}
+                      </td>
+                      <td className="py-4 pr-4 text-right">
+                        <span className="font-mono-tabular text-sm font-semibold text-on-surface">
+                          {hours}<span className="text-xs font-normal text-on-surface-variant ml-0.5">h</span>
+                        </span>
+                      </td>
+                      <td className="py-4 pr-4 text-right">
+                        {activeSession?.projectId === project.id && !activeSession.isPaused ? (
+                          <span className={`text-[12px] font-semibold tracking-wider px-2.5 py-1 rounded-full ${status.color}`}>
+                            <InlineTimer session={activeSession} />
+                          </span>
+                        ) : (
+                          <span className={`text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-full ${status.color}`}>
+                            {status.label}
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-4 pr-5 text-right" onClick={(e) => e.stopPropagation()}>
+                        {activeSession?.projectId === project.id ? (
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => activeSession.isPaused ? resumeTimer() : pauseTimer()}
+                              className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${activeSession.isPaused
+                                  ? 'bg-tertiary text-on-tertiary hover:bg-tertiary/90'
+                                  : 'bg-surface-container-high text-on-surface hover:bg-surface-container-highest'
+                                }`}
+                              title={activeSession.isPaused ? 'Resume' : 'Pause'}
+                            >
+                              <span className="material-symbols-outlined text-[16px]">
+                                {activeSession.isPaused ? 'play_arrow' : 'pause'}
                               </span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-4 pr-4">
-                      <span className="text-sm text-on-surface-variant">{project.clientName || '—'}</span>
-                    </td>
-                    <td className="py-4 pr-4">
-                      {project.type ? (
-                        <span className="text-xs font-semibold px-2 py-0.5 rounded-md" style={{ backgroundColor: project.color + '15', color: project.color }}>
-                          {project.type}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-on-surface-variant">—</span>
-                      )}
-                    </td>
-                    <td className="py-4 pr-4 text-right">
-                      <span className="font-mono-tabular text-sm font-semibold text-on-surface">
-                        {hours}<span className="text-xs font-normal text-on-surface-variant ml-0.5">h</span>
-                      </span>
-                    </td>
-                    <td className="py-4 pr-4 text-right">
-                      {activeSession?.projectId === project.id && !activeSession.isPaused ? (
-                        <span className={`text-[12px] font-semibold tracking-wider px-2.5 py-1 rounded-full ${status.color}`}>
-                          <InlineTimer session={activeSession} />
-                        </span>
-                      ) : (
-                        <span className={`text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-full ${status.color}`}>
-                          {status.label}
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-4 pr-5 text-right" onClick={(e) => e.stopPropagation()}>
-                      {activeSession?.projectId === project.id ? (
-                        <div className="flex items-center justify-end gap-1">
-                          <button
-                            onClick={() => activeSession.isPaused ? resumeTimer() : pauseTimer()}
-                            className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${activeSession.isPaused
-                                ? 'bg-tertiary text-on-tertiary hover:bg-tertiary/90'
-                                : 'bg-surface-container-high text-on-surface hover:bg-surface-container-highest'
-                              }`}
-                            title={activeSession.isPaused ? 'Resume' : 'Pause'}
-                          >
-                            <span className="material-symbols-outlined text-[16px]">
-                              {activeSession.isPaused ? 'play_arrow' : 'pause'}
-                            </span>
-                          </button>
-                          <button
-                            onClick={() => stopTimer()}
-                            className="w-8 h-8 rounded-full bg-error/10 text-error hover:bg-error/20 flex items-center justify-center transition-colors"
-                            title="Stop"
-                          >
-                            <span className="material-symbols-outlined text-[16px]">stop</span>
-                          </button>
-                        </div>
-                      ) : (
-                        project.status === 'active' && (
-                          <button
-                            onClick={() => startTimer(project.id)}
-                            className="w-8 h-8 rounded-full bg-primary/10 text-primary hover:bg-primary/20 inline-flex items-center justify-center transition-colors"
-                            title="Start"
-                          >
-                            <span className="material-symbols-outlined text-[16px]">play_arrow</span>
-                          </button>
-                        )
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                            </button>
+                            <button
+                              onClick={() => stopTimer()}
+                              className="w-8 h-8 rounded-full bg-error/10 text-error hover:bg-error/20 flex items-center justify-center transition-colors"
+                              title="Stop"
+                            >
+                              <span className="material-symbols-outlined text-[16px]">stop</span>
+                            </button>
+                          </div>
+                        ) : (
+                          project.status === 'active' && (
+                            <button
+                              onClick={() => startTimer(project.id)}
+                              className="w-8 h-8 rounded-full bg-primary/10 text-primary hover:bg-primary/20 inline-flex items-center justify-center transition-colors"
+                              title="Start"
+                            >
+                              <span className="material-symbols-outlined text-[16px]">play_arrow</span>
+                            </button>
+                          )
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
       ) : (
         <div className="text-center py-16">
           <span className="material-symbols-outlined text-[56px] text-outline-variant mb-3">

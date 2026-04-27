@@ -9,12 +9,33 @@ const navItems = [
   { path: '/settings', label: 'Settings', icon: 'settings' },
 ];
 
-export default function SideNavBar() {
+export default function SideNavBar({ mobileOpen, onClose }) {
   const { settings } = useApp();
   const navigate = useNavigate();
 
+  const handleNav = (path) => {
+    navigate(path);
+    onClose?.();
+  };
+
   return (
-    <aside className="fixed left-0 top-0 h-screen w-[240px] bg-surface-container-low border-r border-outline-variant/30 flex flex-col z-30">
+    <aside
+      className={`
+        fixed left-0 top-0 h-screen w-[240px] bg-surface-container-low border-r border-outline-variant/30 flex flex-col z-50
+        transition-transform duration-300 ease-in-out
+        ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
+        lg:translate-x-0
+      `}
+    >
+      {/* Close button (mobile only) */}
+      <button
+        onClick={onClose}
+        className="lg:hidden absolute top-4 right-3 w-8 h-8 flex items-center justify-center rounded-full hover:bg-surface-container-high transition-colors text-on-surface-variant"
+        aria-label="Close menu"
+      >
+        <span className="material-symbols-outlined text-[20px]">close</span>
+      </button>
+
       {/* Logo */}
       <div className="px-5 pt-6 pb-4">
         <div className="flex items-center gap-2.5">
@@ -36,7 +57,7 @@ export default function SideNavBar() {
       <div className="px-4 mb-4">
         <button
           id="btn-new-entry"
-          onClick={() => navigate('/new-project')}
+          onClick={() => handleNav('/new-project')}
           className="w-full flex items-center justify-center gap-2 bg-primary text-on-primary py-2.5 rounded-full font-semibold text-sm hover:bg-primary/90 transition-all duration-200 shadow-card hover:shadow-lg active:scale-[0.98]"
         >
           <span className="material-symbols-outlined text-[18px]">add</span>
@@ -52,6 +73,7 @@ export default function SideNavBar() {
               <NavLink
                 to={item.path}
                 end={item.path === '/'}
+                onClick={onClose}
                 id={`nav-${item.label.toLowerCase()}`}
                 className={({ isActive }) =>
                   `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200

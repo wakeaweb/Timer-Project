@@ -217,21 +217,21 @@ export default function ProjectDetailPage() {
           Projects
         </Link>
         <span className="material-symbols-outlined text-[14px]">chevron_right</span>
-        <span className="text-on-surface font-medium">{project.name}</span>
+        <span className="text-on-surface font-medium truncate">{project.name}</span>
       </nav>
 
       {/* ──────────────── SECTION 1: Header ──────────────── */}
-      <div className="flex items-start justify-between my-8">
-        <div className="flex-1">
-          <div className="flex items-center gap-3 mb-1">
-            <h1 className="font-headline text-[2rem] font-bold text-on-surface">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between my-4 lg:my-8 gap-4">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 sm:gap-3 mb-1 flex-wrap">
+            <h1 className="font-headline text-xl sm:text-2xl lg:text-[2rem] font-bold text-on-surface">
               {project.name}
             </h1>
             <span className={`text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-full ${statusColors[project.status]}`}>
               {isActiveProject && !activeSession.isPaused ? 'RUNNING' : project.status === 'completed' ? 'COMPLETED' : 'IN PROGRESS'}
             </span>
           </div>
-          <div className="flex items-center gap-3 text-sm text-on-surface-variant">
+          <div className="flex items-center gap-2 sm:gap-3 text-sm text-on-surface-variant flex-wrap">
             {project.clientName && <span>{project.clientName}</span>}
             {project.clientName && project.type && <span>·</span>}
             {project.type && (
@@ -245,7 +245,7 @@ export default function ProjectDetailPage() {
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {project.status === 'active' && (
             <>
               {!isActiveProject && (
@@ -255,23 +255,24 @@ export default function ProjectDetailPage() {
                   className="flex items-center gap-2 bg-primary text-on-primary px-4 py-2 rounded-full text-sm font-semibold hover:bg-primary/90 transition-all"
                 >
                   <span className="material-symbols-outlined text-[16px]">play_arrow</span>
-                  Start Timer
+                  Start
                 </button>
               )}
               <button
                 id="btn-edit-project"
                 onClick={() => navigate(`/project/${project.id}/edit`)}
-                className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold border border-outline-variant/30 text-on-surface hover:bg-surface-container-high transition-all"
+                className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-full text-sm font-semibold border border-outline-variant/30 text-on-surface hover:bg-surface-container-high transition-all"
               >
                 <span className="material-symbols-outlined text-[16px]">edit</span>
-                Edit
+                <span className="hidden sm:inline">Edit</span>
               </button>
               <button
                 id="btn-complete-project"
                 onClick={() => completeProject(project.id)}
-                className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold bg-on-surface text-inverse-on-surface hover:bg-on-surface/90 transition-all"
+                className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-full text-sm font-semibold bg-on-surface text-inverse-on-surface hover:bg-on-surface/90 transition-all"
               >
-                Complete
+                <span className="hidden sm:inline">Complete</span>
+                <span className="sm:hidden material-symbols-outlined text-[16px]">check</span>
               </button>
             </>
           )}
@@ -311,9 +312,9 @@ export default function ProjectDetailPage() {
       )}
 
       {/* ──────────────── SECTION 2: Timer + Stats ──────────────── */}
-      <div className="grid grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 lg:gap-4 mb-6 lg:mb-8">
         {/* Active Session Card */}
-        <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-2xl p-6 flex flex-col items-center justify-center relative">
+        <div className="sm:col-span-2 lg:col-span-1 bg-surface-container-lowest border border-outline-variant/20 rounded-2xl p-4 lg:p-6 flex flex-col items-center justify-center relative">
           {/* Minify Button */}
           {isActiveProject && (
             <button
@@ -366,8 +367,8 @@ export default function ProjectDetailPage() {
               <p className="text-xs font-semibold uppercase tracking-widest text-on-surface-variant mb-3">
                 {isCompleted ? 'Project Completed' : 'No Active Session'}
               </p>
-              <p className="font-headline text-5xl font-bold font-mono-tabular text-on-surface/20 leading-none">
-                00:00<span className="text-3xl">:00</span>
+              <p className="font-headline text-4xl lg:text-5xl font-bold font-mono-tabular text-on-surface/20 leading-none">
+                00:00<span className="text-2xl lg:text-3xl">:00</span>
               </p>
               {!isCompleted && (
                 <button
@@ -400,23 +401,23 @@ export default function ProjectDetailPage() {
       </div>
 
       {/* ──────────────── SECTION 3: Tabs ──────────────── */}
-      <div className="flex gap-4 border-b border-outline-variant/30 mb-6">
+      <div className="flex gap-2 sm:gap-4 border-b border-outline-variant/30 mb-4 lg:mb-6 overflow-x-auto scrollbar-hide">
         {[
           { id: 'tasks', label: 'Tasks', icon: 'checklist', count: projectTasks.length },
           { id: 'sessions', label: 'Sessions', icon: 'history', count: completedSessions.length },
-          { id: 'days', label: 'Working Days', icon: 'calendar_month', count: workingDays.length },
+          { id: 'days', label: 'Days', icon: 'calendar_month', count: workingDays.length },
           ...(project.files?.length > 0 ? [{ id: 'files', label: 'Files', icon: 'attach_file', count: project.files.length }] : []),
         ].map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 pb-3 px-2 text-sm font-semibold transition-colors border-b-2 ${
+            className={`flex items-center gap-1.5 sm:gap-2 pb-3 px-1.5 sm:px-2 text-xs sm:text-sm font-semibold transition-colors border-b-2 whitespace-nowrap ${
               activeTab === tab.id
                 ? 'border-primary text-primary'
                 : 'border-transparent text-on-surface-variant hover:text-on-surface'
             }`}
           >
-            <span className="material-symbols-outlined text-[18px]">{tab.icon}</span>
+            <span className="material-symbols-outlined text-[16px] sm:text-[18px]">{tab.icon}</span>
             {tab.label}
             {tab.count > 0 && (
               <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant">
@@ -432,7 +433,7 @@ export default function ProjectDetailPage() {
         {activeTab === 'tasks' && <TaskList projectId={id} />}
 
         {activeTab === 'sessions' && (
-          <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-2xl p-6">
+          <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-2xl p-3 sm:p-6">
             <SessionTable
               sessions={projectSessions}
               onEditSession={(sessionId, updates) => editSession(sessionId, updates)}
@@ -441,24 +442,24 @@ export default function ProjectDetailPage() {
         )}
 
         {activeTab === 'days' && (
-          <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-2xl p-6">
+          <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-2xl p-3 sm:p-6">
             {workingDays.length === 0 ? (
               <div className="text-center py-8 text-on-surface-variant">No working days recorded.</div>
             ) : (
               <div className="space-y-3">
                 {workingDays.map(day => (
-                  <div key={day.dateString} className="flex items-center justify-between p-4 bg-surface-container rounded-xl border border-outline-variant/10">
+                  <div key={day.dateString} className="flex items-center justify-between p-3 sm:p-4 bg-surface-container rounded-xl border border-outline-variant/10">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-primary-container text-on-primary-container flex items-center justify-center font-bold font-headline">
+                      <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-primary-container text-on-primary-container flex items-center justify-center font-bold font-headline text-sm sm:text-base">
                         {new Date(day.dateString).getDate()}
                       </div>
                       <div>
-                        <p className="font-semibold text-on-surface">{day.formattedDate}</p>
+                        <p className="font-semibold text-on-surface text-sm sm:text-base">{day.formattedDate}</p>
                         <p className="text-xs text-on-surface-variant">{day.sessions.length} sessions</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="font-mono-tabular font-bold text-primary">{formatDurationShort(day.totalMs)}</p>
+                      <p className="font-mono-tabular font-bold text-primary text-sm sm:text-base">{formatDurationShort(day.totalMs)}</p>
                       <p className="text-xs text-on-surface-variant">{msToHours(day.totalMs)} hrs</p>
                     </div>
                   </div>
@@ -469,7 +470,7 @@ export default function ProjectDetailPage() {
         )}
 
         {activeTab === 'files' && project.files?.length > 0 && (
-          <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-2xl p-6">
+          <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-2xl p-3 sm:p-6">
             <div className="space-y-2">
               {project.files.map((file, i) => (
                 <div key={i} className="flex items-center gap-3 p-3 bg-surface-container rounded-xl border border-outline-variant/10">
@@ -480,10 +481,10 @@ export default function ProjectDetailPage() {
                   </div>
                   <button
                     onClick={() => downloadFile(file)}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold text-primary border border-primary/30 hover:bg-primary/10 transition-colors"
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold text-primary border border-primary/30 hover:bg-primary/10 transition-colors shrink-0"
                   >
                     <span className="material-symbols-outlined text-[14px]">download</span>
-                    Download
+                    <span className="hidden sm:inline">Download</span>
                   </button>
                 </div>
               ))}

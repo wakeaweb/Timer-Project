@@ -15,12 +15,12 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="max-w-2xl">
-      <div className="mt-4 mb-8">
-        <h1 className="font-headline text-[2rem] font-bold text-on-surface">Settings</h1>
+    <div className="max-w-2xl mx-auto lg:mx-0">
+      <div className="mt-4 mb-6 lg:mb-8">
+        <h1 className="font-headline text-2xl lg:text-[2rem] font-bold text-on-surface">Settings</h1>
         <p className="text-sm text-on-surface-variant mt-0.5">Manage your preferences</p>
       </div>
-      <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-2xl p-6 space-y-6">
+      <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-2xl p-4 sm:p-6 space-y-6">
         <div>
           <label className="block text-sm font-semibold text-on-surface mb-1.5">Display Name</label>
           <input id="input-username" type="text" value={form.userName} onChange={e => setForm({ ...form, userName: e.target.value })} className="w-full px-4 py-3 rounded-xl bg-surface-container border border-outline-variant/30 text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all text-sm" />

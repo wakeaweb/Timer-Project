@@ -27,36 +27,46 @@ export default function ReportsPage() {
 
   return (
     <div className="max-w-5xl">
-      <div className="mt-4 mb-8">
-        <h1 className="font-headline text-[2rem] font-bold text-on-surface">Reports &amp; Analytics</h1>
+      <div className="mt-4 mb-6 lg:mb-8">
+        <h1 className="font-headline text-2xl lg:text-[2rem] font-bold text-on-surface">Reports &amp; Analytics</h1>
         <p className="text-sm text-on-surface-variant mt-0.5">Insights and tracking for this period</p>
       </div>
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 lg:gap-4 mb-6">
         <StatCard title="Total Tracked Time" value={formatDurationShort(totalMs)} subtitle="↗ +12% from last week" icon="schedule" />
         <StatCard title="Billable Amount" value={`${currency}${totalBillable.toLocaleString()}`} subtitle="↗ +5% from last week" icon="payments" />
-        <StatCard title="Productivity Score" value={<>{productivityScore}<span className="text-lg font-normal"> /100</span></>} icon="trending_up" highlight subtitle={<div className="mt-2 h-1.5 bg-white/20 rounded-full overflow-hidden"><div className="h-full bg-on-primary rounded-full" style={{ width: `${productivityScore}%` }} /></div>} />
+        <StatCard
+          title="Productivity Score"
+          value={<>{productivityScore}<span className="text-lg font-normal"> /100</span></>}
+          icon="trending_up"
+          highlight
+          subtitle={<div className="mt-2 h-1.5 bg-white/20 rounded-full overflow-hidden"><div className="h-full bg-on-primary rounded-full" style={{ width: `${productivityScore}%` }} /></div>}
+          className="sm:col-span-2 lg:col-span-1"
+        />
       </div>
-      <div className="grid grid-cols-5 gap-4 mb-6">
-        <div className="col-span-3"><BarChart data={weeklyData} title="Weekly Time Distribution" /></div>
-        <div className="col-span-2">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mb-6">
+        <div className="lg:col-span-3"><BarChart data={weeklyData} title="Weekly Time Distribution" /></div>
+        <div className="lg:col-span-2">
           <DonutChart total={`${currency}${totalBillable.toLocaleString()}`} title="Financial Overview" segments={[
             { value: invoiced, color: '#4a7c59', label: 'Invoiced', displayValue: `${currency}${invoiced.toLocaleString()}` },
             { value: uninvoiced, color: '#c4a66a', label: 'Uninvoiced', displayValue: `${currency}${uninvoiced.toLocaleString()}` },
           ]} />
         </div>
       </div>
-      <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-2xl p-6">
-        <div className="flex items-center justify-between my-8">
+      <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-2xl p-4 lg:p-6">
+        <div className="flex items-center justify-between my-4 lg:my-8">
           <h3 className="font-headline text-base font-semibold text-on-surface">Hours per Project</h3>
         </div>
-        <div className="space-y-5">
+        <div className="space-y-4 lg:space-y-5">
           {projectStats.slice(0, 5).map(({ project, hours }) => {
             const maxH = Math.max(...projectStats.map(ps => ps.hours), 1);
             return (
               <div key={project.id}>
                 <div className="flex items-center justify-between mb-2">
-                  <div><p className="text-sm font-semibold text-on-surface">{project.name}</p><p className="text-xs text-on-surface-variant">Client: {project.clientName || 'N/A'}</p></div>
-                  <span className="text-sm font-semibold text-on-surface">{hours}h</span>
+                  <div className="min-w-0 flex-1 mr-3">
+                    <p className="text-sm font-semibold text-on-surface truncate">{project.name}</p>
+                    <p className="text-xs text-on-surface-variant truncate">Client: {project.clientName || 'N/A'}</p>
+                  </div>
+                  <span className="text-sm font-semibold text-on-surface shrink-0">{hours}h</span>
                 </div>
                 <div className="h-2 bg-surface-container-high rounded-full overflow-hidden">
                   <div className="h-full rounded-full transition-all duration-700" style={{ width: `${(hours / maxH) * 100}%`, backgroundColor: project.color }} />

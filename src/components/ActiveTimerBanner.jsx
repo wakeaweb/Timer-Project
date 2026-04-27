@@ -51,7 +51,7 @@ export default function ActiveTimerBanner() {
   return (
     <div 
       onClick={handleBannerClick}
-      className="sticky top-0 z-30 w-full h-12 flex items-center justify-between px-6 cursor-pointer hover:opacity-95 transition-opacity"
+      className="sticky top-0 z-30 w-full h-11 sm:h-12 flex items-center justify-between px-3 sm:px-6 cursor-pointer hover:opacity-95 transition-opacity"
       style={{ backgroundColor: project.color, color: '#fff' }}
     >
       <div className="flex items-center gap-3">

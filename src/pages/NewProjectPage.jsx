@@ -101,7 +101,7 @@ export default function NewProjectPage() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-2xl p-8 shadow-card">
+      <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-2xl p-4 sm:p-6 lg:p-8 shadow-card">
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
           <div
@@ -116,7 +116,7 @@ export default function NewProjectPage() {
             </span>
           </div>
           <div>
-            <h1 className="font-headline text-[2rem] font-bold text-on-surface">
+            <h1 className="font-headline text-xl sm:text-2xl lg:text-[2rem] font-bold text-on-surface">
               {isEditMode ? 'Edit Project' : 'Create New Project'}
             </h1>
             <p className="text-sm text-on-surface-variant">
@@ -143,7 +143,7 @@ export default function NewProjectPage() {
           </div>
 
           {/* Client Name + Type */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-semibold text-on-surface mb-1.5">
                 Client Name
@@ -182,7 +182,7 @@ export default function NewProjectPage() {
           </div>
 
           {/* Hourly Rate + Estimated Time */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-semibold text-on-surface mb-1.5">
                 Hourly Rate

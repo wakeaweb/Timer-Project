@@ -198,31 +198,7 @@ export function AppProvider({ children }) {
     }
   }, [state.settings, state.isInitialized]);
 
-  // beforeunload — aktif seansı koru
-  useEffect(() => {
-    function handleBeforeUnload() {
-      if (state.activeSession) {
-        const now = Date.now();
-        let finalDuration = state.activeSession.accumulatedMs;
-        
-        if (!state.activeSession.isPaused) {
-          const lastResumedAt = state.activeSession.lastResumedAt || new Date(state.activeSession.startTime).getTime();
-          finalDuration += (now - lastResumedAt);
-        }
-        
-        const endTime = new Date(now).toISOString();
-        const sessions = getSessions().map(s =>
-          s.id === state.activeSession.sessionId
-            ? { ...s, endTime, duration: finalDuration }
-            : s
-        );
-        saveSessions(sessions);
-        clearActiveSession();
-      }
-    }
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [state.activeSession]);
+  // Timer will persist natively via localStorage synchronization.
 
   // ─── Action Creators ───────────────────────────────
 
