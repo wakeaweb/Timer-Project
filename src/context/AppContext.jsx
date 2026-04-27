@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useReducer, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from './AuthContext';
 import { projectsApi, sessionsApi, tasksApi, settingsApi } from '../services/api';
+import { subscribeToChanges } from '../services/realtimeSync';
 import {
   getProjects, saveProjects, 
   getSessions, saveSessions, 
@@ -139,6 +140,46 @@ function reducer(state, action) {
       return { ...state, activeSession: action.payload };
     case 'UPDATE_SETTINGS':
       return { ...state, settings: { ...state.settings, ...action.payload } };
+
+    // ─── Realtime: Başka cihazdan gelen değişiklikler ──────────────
+    case 'REMOTE_UPSERT_PROJECT': {
+      const exists = state.projects.some(p => p.id === action.payload.id);
+      return {
+        ...state,
+        projects: exists
+          ? state.projects.map(p => p.id === action.payload.id ? { ...p, ...action.payload } : p)
+          : [...state.projects, action.payload],
+      };
+    }
+    case 'REMOTE_DELETE_PROJECT':
+      return {
+        ...state,
+        projects: state.projects.filter(p => p.id !== action.payload),
+        sessions: state.sessions.filter(s => s.projectId !== action.payload),
+      };
+    case 'REMOTE_UPSERT_SESSION': {
+      const exists = state.sessions.some(s => s.id === action.payload.id);
+      return {
+        ...state,
+        sessions: exists
+          ? state.sessions.map(s => s.id === action.payload.id ? { ...s, ...action.payload } : s)
+          : [...state.sessions, action.payload],
+      };
+    }
+    case 'REMOTE_DELETE_SESSION':
+      return { ...state, sessions: state.sessions.filter(s => s.id !== action.payload) };
+    case 'REMOTE_UPSERT_TASK': {
+      const exists = state.tasks.some(t => t.id === action.payload.id);
+      return {
+        ...state,
+        tasks: exists
+          ? state.tasks.map(t => t.id === action.payload.id ? { ...t, ...action.payload } : t)
+          : [...state.tasks, action.payload],
+      };
+    }
+    case 'REMOTE_DELETE_TASK':
+      return { ...state, tasks: state.tasks.filter(t => t.id !== action.payload) };
+
     default:
       return state;
   }
@@ -201,6 +242,15 @@ export function AppProvider({ children }) {
 
     initData();
   }, [isAuthenticated, user]);
+
+  // Realtime subscription'ı başlat
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      const unsubscribe = subscribeToChanges(user.id, dispatch);
+      return () => unsubscribe();
+    }
+  }, [isAuthenticated, user]);
+
 
   // State değiştikçe localStorage'a ve Supabase'e yaz (offline-first)
   useEffect(() => {

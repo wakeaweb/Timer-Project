@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 
 // ─── Mappers: Local (camelCase) ↔ Supabase (snake_case) ──────────────
+// (exported for use in realtimeSync.js)
 
 const toDbProject = (p, userId) => ({
   id: p.id,
@@ -18,7 +19,7 @@ const toDbProject = (p, userId) => ({
   completed_at: p.completedAt ?? null,
 });
 
-const fromDbProject = (p) => ({
+export const fromDbProject = (p) => ({
   id: p.id,
   name: p.name,
   clientName: p.client_name,
@@ -44,7 +45,7 @@ const toDbSession = (s, userId) => ({
   duration: s.duration ?? 0,
 });
 
-const fromDbSession = (s) => ({
+export const fromDbSession = (s) => ({
   id: s.id,
   projectId: s.project_id,
   startTime: s.start_time,
@@ -62,7 +63,7 @@ const toDbTask = (t, userId) => ({
   created_at: t.createdAt ?? new Date().toISOString(),
 });
 
-const fromDbTask = (t) => ({
+export const fromDbTask = (t) => ({
   id: t.id,
   projectId: t.project_id,
   title: t.title,
