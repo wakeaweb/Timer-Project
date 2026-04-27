@@ -1,6 +1,7 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 
 const navItems = [
   { path: '/', label: 'Dashboard', icon: 'dashboard' },
@@ -10,12 +11,22 @@ const navItems = [
 ];
 
 export default function SideNavBar({ mobileOpen, onClose }) {
-  const { settings } = useApp();
+  const { settings, isSyncing } = useApp();
+  const { signOut, user } = useAuth();
   const navigate = useNavigate();
 
   const handleNav = (path) => {
     navigate(path);
     onClose?.();
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      navigate('/login');
+    } catch (err) {
+      console.error('Logout error:', err);
+    }
   };
 
   return (
@@ -44,11 +55,16 @@ export default function SideNavBar({ mobileOpen, onClose }) {
               timer
             </span>
           </div>
-          <div>
+          <div className="min-w-0">
             <h1 className="font-headline text-lg font-semibold text-primary leading-tight">
               Time Project
             </h1>
-            <p className="text-[11px] text-on-surface-variant leading-tight">Freelancer Pro</p>
+            <div className="flex items-center gap-1.5">
+              <p className="text-[11px] text-on-surface-variant leading-tight">Freelancer Pro</p>
+              {isSyncing && (
+                <span className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" title="Senkronize ediliyor..." />
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -97,17 +113,26 @@ export default function SideNavBar({ mobileOpen, onClose }) {
       </nav>
 
       {/* User Profile */}
-      <div className="px-4 py-4 border-t border-outline-variant/30">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-full bg-primary-container flex items-center justify-center text-sm font-bold text-on-primary-fixed-variant">
-            {settings.userName?.charAt(0)?.toUpperCase() || 'U'}
+      <div className="px-4 py-4 border-t border-outline-variant/30 bg-surface-container-low/50">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-full bg-primary-container flex items-center justify-center text-sm font-bold text-on-primary-fixed-variant shrink-0">
+              {settings.userName?.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || 'U'}
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-on-surface truncate">
+                {settings.userName || 'Kullanıcı'}
+              </p>
+              <p className="text-[10px] text-on-surface-variant truncate">{user?.email}</p>
+            </div>
           </div>
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-on-surface truncate">
-              {settings.userName || 'Kullanıcı'}
-            </p>
-            <p className="text-[11px] text-on-surface-variant">Freelance Designer</p>
-          </div>
+          <button
+            onClick={handleLogout}
+            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-error-container/20 text-on-surface-variant hover:text-error transition-colors"
+            title="Çıkış Yap"
+          >
+            <span className="material-symbols-outlined text-[20px]">logout</span>
+          </button>
         </div>
       </div>
     </aside>

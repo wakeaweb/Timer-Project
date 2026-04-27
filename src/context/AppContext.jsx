@@ -1,13 +1,13 @@
-import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useCallback, useRef } from 'react';
+import { useAuth } from './AuthContext';
+import { projectsApi, sessionsApi, tasksApi, settingsApi } from '../services/api';
 import {
-  getProjects, saveProjects, addProject as storageAddProject,
-  updateProject as storageUpdateProject, deleteProject as storageDeleteProject,
-  getSessions, saveSessions, addSession as storageAddSession,
-  updateSession as storageUpdateSession,
+  getProjects, saveProjects, 
+  getSessions, saveSessions, 
   getActiveSession, setActiveSession, clearActiveSession,
   getTasks, saveTasks,
   getSettings, saveSettings as storageSaveSettings,
-  seedDemoData, generateId,
+  generateId,
 } from '../utils/storage';
 
 const AppContext = createContext(null);
@@ -19,12 +19,15 @@ const initialState = {
   tasks: [],
   activeSession: null,
   settings: { userName: 'Kullanıcı', defaultHourlyRate: 0, currency: '₺' },
+  isSyncing: false,
 };
 
 function reducer(state, action) {
   switch (action.type) {
     case 'INIT':
       return { ...state, ...action.payload, isInitialized: true };
+    case 'SET_SYNCING':
+      return { ...state, isSyncing: action.payload };
     case 'ADD_PROJECT':
       return { ...state, projects: [...state.projects, action.payload] };
     case 'UPDATE_PROJECT':
@@ -72,10 +75,6 @@ function reducer(state, action) {
       if (!state.activeSession || state.activeSession.isPaused) return state;
       const now = Date.now();
       const sessionStart = new Date(state.activeSession.startTime).getTime();
-      // Calculate how long it was running since it was last resumed (or started)
-      // Actually we just calculate total elapsed if it hasn't been paused before,
-      // but wait, if it was resumed, we need to know when it was resumed to add to accumulatedMs.
-      // Let's store lastResumedAt in activeSession.
       const lastResumedAt = state.activeSession.lastResumedAt || sessionStart;
       const segmentMs = now - lastResumedAt;
       
@@ -147,58 +146,94 @@ function reducer(state, action) {
 
 export function AppProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const { user, isAuthenticated } = useAuth();
+  const syncTimeoutRef = useRef(null);
 
-  // Uygulama başladığında localStorage'dan yükle
+  // Uygulama başladığında ve kullanıcı değiştiğinde verileri yükle
   useEffect(() => {
-    seedDemoData();
-    dispatch({
-      type: 'INIT',
-      payload: {
-        projects: getProjects(),
-        sessions: getSessions(),
-        tasks: getTasks(),
-        activeSession: getActiveSession(),
-        settings: getSettings(),
-      },
-    });
-  }, []);
+    const initData = async () => {
+      // 1. Önce localStorage'dan yükle (hızlı başlangıç / offline)
+      const localProjects = getProjects();
+      const localSessions = getSessions();
+      const localTasks = getTasks();
+      const localSettings = getSettings();
+      const localActive = getActiveSession();
 
-  // State değiştiğinde localStorage'a yaz
+      dispatch({
+        type: 'INIT',
+        payload: {
+          projects: localProjects,
+          sessions: localSessions,
+          tasks: localTasks,
+          activeSession: localActive,
+          settings: localSettings,
+        },
+      });
+
+      // 2. Online ise Supabase'den çek (doğru mapping ile)
+      if (isAuthenticated && user) {
+        dispatch({ type: 'SET_SYNCING', payload: true });
+        try {
+          const [sbProjects, sbSessions, sbTasks, sbSettings] = await Promise.all([
+            projectsApi.fetchAll(user.id),
+            sessionsApi.fetchAll(user.id),
+            tasksApi.fetchAll(user.id),
+            settingsApi.fetch(user.id),
+          ]);
+
+          dispatch({
+            type: 'INIT',
+            payload: {
+              projects: sbProjects.length > 0 ? sbProjects : localProjects,
+              sessions: sbSessions.length > 0 ? sbSessions : localSessions,
+              tasks: sbTasks.length > 0 ? sbTasks : localTasks,
+              settings: sbSettings || localSettings,
+              activeSession: localActive,
+            },
+          });
+        } catch (error) {
+          console.error('Supabase fetch error:', error);
+        } finally {
+          dispatch({ type: 'SET_SYNCING', payload: false });
+        }
+      }
+    };
+
+    initData();
+  }, [isAuthenticated, user]);
+
+  // State değiştikçe localStorage'a ve Supabase'e yaz (offline-first)
   useEffect(() => {
     if (state.isInitialized) {
+      // Her zaman localStorage'a yaz (offline fallback)
       saveProjects(state.projects);
-    }
-  }, [state.projects, state.isInitialized]);
-
-  useEffect(() => {
-    if (state.isInitialized) {
       saveSessions(state.sessions);
-    }
-  }, [state.sessions, state.isInitialized]);
-
-  useEffect(() => {
-    if (state.isInitialized) {
       saveTasks(state.tasks);
-    }
-  }, [state.tasks, state.isInitialized]);
+      storageSaveSettings(state.settings);
+      if (state.activeSession) setActiveSession(state.activeSession);
+      else clearActiveSession();
 
-  useEffect(() => {
-    if (state.isInitialized) {
-      if (state.activeSession) {
-        setActiveSession(state.activeSession);
-      } else {
-        clearActiveSession();
+      // Supabase'e debounced sync (doğru mapping ile)
+      if (isAuthenticated && user) {
+        if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+        syncTimeoutRef.current = setTimeout(async () => {
+          dispatch({ type: 'SET_SYNCING', payload: true });
+          try {
+            await Promise.all([
+              projectsApi.upsert(state.projects, user.id),
+              sessionsApi.upsert(state.sessions, user.id),
+              tasksApi.upsert(state.tasks, user.id),
+              settingsApi.upsert(state.settings, user.id),
+            ]);
+          } catch (err) {
+            console.error('Sync error:', err);
+          } finally {
+            dispatch({ type: 'SET_SYNCING', payload: false });
+          }
+        }, 1500); // 1.5 saniye debounce
       }
     }
-  }, [state.activeSession, state.isInitialized]);
-
-  useEffect(() => {
-    if (state.isInitialized) {
-      storageSaveSettings(state.settings);
-    }
-  }, [state.settings, state.isInitialized]);
-
-  // Timer will persist natively via localStorage synchronization.
+  }, [state.projects, state.sessions, state.tasks, state.settings, state.activeSession, state.isInitialized, isAuthenticated, user]);
 
   // ─── Action Creators ───────────────────────────────
 
@@ -222,12 +257,14 @@ export function AppProvider({ children }) {
     dispatch({ type: 'UPDATE_PROJECT', payload: { id, updates } });
   }, []);
 
-  const removeProject = useCallback((id) => {
+  const removeProject = useCallback(async (id) => {
     dispatch({ type: 'DELETE_PROJECT', payload: id });
-  }, []);
+    if (isAuthenticated) {
+      try { await projectsApi.remove(id); } catch (e) { console.error(e); }
+    }
+  }, [isAuthenticated]);
 
   const startTimer = useCallback((projectId, description = '') => {
-    // Mevcut aktif seans varsa onu tamamen durdur (Stop)
     if (state.activeSession) {
       dispatch({ type: 'STOP_TIMER' });
     }
@@ -256,7 +293,7 @@ export function AppProvider({ children }) {
     if (!state.activeSession) return;
     const sessionId = state.activeSession.sessionId;
     dispatch({ type: 'STOP_TIMER' });
-    return sessionId; // Geriye sessionId dön, böylece log güncellenebilsin
+    return sessionId;
   }, [state.activeSession]);
 
   const completeProject = useCallback((id) => {
@@ -295,9 +332,12 @@ export function AppProvider({ children }) {
     dispatch({ type: 'UPDATE_TASK', payload: { id, updates } });
   }, []);
 
-  const removeTaskAction = useCallback((id) => {
+  const removeTaskAction = useCallback(async (id) => {
     dispatch({ type: 'DELETE_TASK', payload: id });
-  }, []);
+    if (isAuthenticated) {
+      try { await tasksApi.remove(id); } catch (e) { console.error(e); }
+    }
+  }, [isAuthenticated]);
 
   const updateSettings = useCallback((updates) => {
     dispatch({ type: 'UPDATE_SETTINGS', payload: updates });

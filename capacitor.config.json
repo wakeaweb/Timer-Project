@@ -1,0 +1,15 @@
+{
+  "appId": "com.timeproject.app",
+  "appName": "Time Project",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1200,
+      "backgroundColor": "#faf6f0",
+      "showSpinner": false
+    }
+  }
+}
