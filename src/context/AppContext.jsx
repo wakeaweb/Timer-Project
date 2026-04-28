@@ -10,6 +10,7 @@ import {
   getSettings, saveSettings as storageSaveSettings,
   generateId,
 } from '../utils/storage';
+import { LocalNotifications } from '@capacitor/local-notifications';
 
 const AppContext = createContext(null);
 
@@ -251,6 +252,18 @@ export function AppProvider({ children }) {
     }
   }, [isAuthenticated, user]);
 
+  // Bildirim izinlerini al
+  useEffect(() => {
+    const requestPermissions = async () => {
+      try {
+        await LocalNotifications.requestPermissions();
+      } catch (error) {
+        console.warn('Local Notifications permission denied/error:', error);
+      }
+    };
+    requestPermissions();
+  }, []);
+
 
   // State değiştikçe localStorage'a ve Supabase'e yaz (offline-first)
   useEffect(() => {
@@ -300,12 +313,44 @@ export function AppProvider({ children }) {
       ...projectData,
     };
     dispatch({ type: 'ADD_PROJECT', payload: project });
+
+    if (projectData.priorWorkedHours > 0) {
+      const durationMs = Math.floor(projectData.priorWorkedHours * 60 * 60 * 1000);
+      const dummySession = {
+        id: generateId(),
+        projectId: project.id,
+        startTime: new Date().toISOString(),
+        endTime: new Date().toISOString(),
+        description: 'Prior Worked Time',
+        duration: durationMs,
+      };
+      dispatch({ type: 'ADD_SESSION', payload: dummySession });
+    }
+
     return project;
   }, []);
 
   const editProject = useCallback((id, updates) => {
     dispatch({ type: 'UPDATE_PROJECT', payload: { id, updates } });
-  }, []);
+
+    if (updates.priorWorkedHours !== undefined) {
+      const durationMs = Math.floor(updates.priorWorkedHours * 60 * 60 * 1000);
+      // Find existing dummy session for prior time
+      const existingSession = state.sessions.find(s => s.projectId === id && s.description === 'Prior Worked Time');
+      if (existingSession) {
+        dispatch({ type: 'UPDATE_SESSION', payload: { id: existingSession.id, updates: { duration: durationMs } } });
+      } else if (durationMs > 0) {
+        dispatch({ type: 'ADD_SESSION', payload: {
+          id: generateId(),
+          projectId: id,
+          startTime: new Date().toISOString(),
+          endTime: new Date().toISOString(),
+          description: 'Prior Worked Time',
+          duration: durationMs,
+        }});
+      }
+    }
+  }, [state.sessions]);
 
   const removeProject = useCallback(async (id) => {
     dispatch({ type: 'DELETE_PROJECT', payload: id });
@@ -314,7 +359,7 @@ export function AppProvider({ children }) {
     }
   }, [isAuthenticated]);
 
-  const startTimer = useCallback((projectId, description = '') => {
+  const startTimer = useCallback(async (projectId, description = '') => {
     if (state.activeSession) {
       dispatch({ type: 'STOP_TIMER' });
     }
@@ -327,22 +372,61 @@ export function AppProvider({ children }) {
       duration: 0,
     };
     dispatch({ type: 'START_TIMER', payload: { projectId, session } });
-  }, [state.activeSession]);
 
-  const pauseTimer = useCallback(() => {
+    // Bildirim göster
+    try {
+      const project = state.projects.find(p => p.id === projectId);
+      await LocalNotifications.schedule({
+        notifications: [{
+          title: 'Zaman Sayacı Aktif',
+          body: `${project?.name || 'Proje'} için süre işliyor...`,
+          id: 1,
+          ongoing: true, // silinmeyen bildirim
+          autoCancel: false,
+        }]
+      });
+    } catch (e) { console.error('Notification error', e); }
+  }, [state.activeSession, state.projects]);
+
+  const pauseTimer = useCallback(async () => {
     if (!state.activeSession) return;
     dispatch({ type: 'PAUSE_TIMER' });
+    try {
+      await LocalNotifications.schedule({
+        notifications: [{
+          title: 'Sayac Duraklatıldı',
+          body: 'Süre duraklatıldı.',
+          id: 1,
+          ongoing: false,
+        }]
+      });
+    } catch (e) {}
   }, [state.activeSession]);
 
-  const resumeTimer = useCallback(() => {
+  const resumeTimer = useCallback(async () => {
     if (!state.activeSession) return;
     dispatch({ type: 'RESUME_TIMER' });
-  }, [state.activeSession]);
+    try {
+      const project = state.projects.find(p => p.id === state.activeSession.projectId);
+      await LocalNotifications.schedule({
+        notifications: [{
+          title: 'Zaman Sayacı Aktif',
+          body: `${project?.name || 'Proje'} için süre işliyor...`,
+          id: 1,
+          ongoing: true,
+          autoCancel: false,
+        }]
+      });
+    } catch (e) {}
+  }, [state.activeSession, state.projects]);
 
-  const stopTimer = useCallback(() => {
+  const stopTimer = useCallback(async () => {
     if (!state.activeSession) return;
     const sessionId = state.activeSession.sessionId;
     dispatch({ type: 'STOP_TIMER' });
+    try {
+      await LocalNotifications.cancel({ notifications: [{ id: 1 }] });
+    } catch (e) {}
     return sessionId;
   }, [state.activeSession]);
 

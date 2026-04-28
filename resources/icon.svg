@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <rect width="1024" height="1024" fill="#4a7c59" />
+  <g transform="translate(100, 100) scale(0.85)">
+    <path fill="#ffffff" d="M480-80q-134 0-227-93t-93-227q0-134 93-227t227-93q33 0 63.5 6t59.5 17l64-64 56 56-64 64q34 39 52.5 86T760-400q0 134-93 227t-227 93Zm0-80q100 0 170-70t70-170q0-100-70-170t-170-70q-100 0-170 70t-70 170q0 100 70 170t170 70Zm-40-360v200h80v-200h-80ZM360-800v-80h240v80H360Z" transform="translate(0, 960)"/>
+  </g>
+</svg>

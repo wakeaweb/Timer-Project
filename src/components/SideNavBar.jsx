@@ -1,7 +1,8 @@
 import React from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
+import ThemeToggle from './ThemeToggle';
 
 const navItems = [
   { path: '/', label: 'Dashboard', icon: 'dashboard' },
@@ -49,7 +50,7 @@ export default function SideNavBar({ mobileOpen, onClose }) {
 
       {/* Logo */}
       <div className="px-5 pt-6 pb-4">
-        <div className="flex items-center gap-2.5">
+        <Link to="/" onClick={onClose} className="flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center">
             <span className="material-symbols-outlined text-on-primary text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>
               timer
@@ -66,7 +67,7 @@ export default function SideNavBar({ mobileOpen, onClose }) {
               )}
             </div>
           </div>
-        </div>
+        </Link>
       </div>
 
       {/* New Entry Button */}
@@ -126,13 +127,16 @@ export default function SideNavBar({ mobileOpen, onClose }) {
               <p className="text-[10px] text-on-surface-variant truncate">{user?.email}</p>
             </div>
           </div>
-          <button
-            onClick={handleLogout}
-            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-error-container/20 text-on-surface-variant hover:text-error transition-colors"
-            title="Çıkış Yap"
-          >
-            <span className="material-symbols-outlined text-[20px]">logout</span>
-          </button>
+          <div className="flex items-center gap-1">
+            <ThemeToggle />
+            <button
+              onClick={handleLogout}
+              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-error-container/20 text-on-surface-variant hover:text-error transition-colors"
+              title="Çıkış Yap"
+            >
+              <span className="material-symbols-outlined text-[20px]">logout</span>
+            </button>
+          </div>
         </div>
       </div>
     </aside>

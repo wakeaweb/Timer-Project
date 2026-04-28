@@ -115,3 +115,20 @@ body.sidebar-open {
     -webkit-overflow-scrolling: touch;
   }
 }
+
+/* Dark Mode (Filter Based) */
+html.dark {
+  filter: invert(1) hue-rotate(180deg);
+  background-color: #05090f; /* prevents white flash and sets inverted background */
+}
+html.dark img, 
+html.dark video,
+html.dark .material-symbols-outlined.no-invert,
+html.dark .bg-primary,
+html.dark .text-primary {
+  /* Invert back elements that shouldn't change color or lightness, if needed. 
+     Actually, hue-rotate 180 preserves hue. We might not need to invert-back anything except photos. */
+}
+html.dark img {
+  filter: invert(1) hue-rotate(180deg);
+}

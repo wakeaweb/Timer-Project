@@ -86,8 +86,8 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* ─── Row 2: Period Metrics (3 cards) ─── */}
-      <div className="grid grid-cols-3 gap-3 lg:gap-4 mb-6 lg:mb-8">
+      {/* ─── Row 2: Period Metrics (3 cards) - Hidden on mobile ─── */}
+      <div className="hidden md:grid grid-cols-3 gap-3 lg:gap-4 mb-6 lg:mb-8">
         <StatCard
           title="This Week"
           value={<>{weekHours} <span className="text-sm lg:text-lg font-normal">hrs</span></>}
@@ -109,9 +109,14 @@ export default function DashboardPage() {
       </div>
 
       {/* ─── Row 3: Last 7 Days Chart (col 1-2) + Active Timer (col 3) ─── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6 lg:mb-8">
+      <div className="flex flex-col lg:grid lg:grid-cols-3 gap-4 mb-6 lg:mb-8">
+        {/* Active Timer (compact, col 3) - Moves to top on mobile */}
+        <div className="order-1 lg:order-2 lg:col-span-1">
+          <ActiveTimerCard compact />
+        </div>
+
         {/* Last 7 Days Bar Chart */}
-        <div className="lg:col-span-2 bg-surface-container-lowest border border-outline-variant/20 rounded-2xl p-5 lg:p-6">
+        <div className="order-2 lg:order-1 lg:col-span-2 bg-surface-container-lowest border border-outline-variant/20 rounded-2xl p-5 lg:p-6">
           <div className="flex items-center justify-between mb-5">
             <h3 className="font-headline text-base font-semibold text-on-surface">Last 7 Days</h3>
             <span className="text-xs text-on-surface-variant font-medium">
@@ -145,10 +150,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Active Timer (compact, col 3) */}
-        <div className="lg:col-span-1">
-          <ActiveTimerCard compact />
-        </div>
       </div>
 
       {/* ─── Row 4: Today's Focus (col 1) + Recent Projects list (col 2) ─── */}

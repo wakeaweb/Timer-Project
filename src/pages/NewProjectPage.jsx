@@ -11,12 +11,20 @@ const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
 
 export default function NewProjectPage() {
   const { id } = useParams(); // edit modunda id gelir
-  const { addProject, editProject, projects, settings } = useApp();
+  const { addProject, editProject, projects, sessions, settings } = useApp();
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
 
   const existingProject = id ? projects.find(p => p.id === id) : null;
   const isEditMode = !!existingProject;
+
+  // Find dummy session if editing
+  const existingDummySession = isEditMode
+    ? sessions.find(s => s.projectId === id && s.description === 'Prior Worked Time')
+    : null;
+  const existingPriorHours = existingDummySession
+    ? (existingDummySession.duration / (60 * 60 * 1000)).toFixed(1)
+    : '';
 
   const [form, setForm] = useState({
     name: existingProject?.name || '',
@@ -25,6 +33,7 @@ export default function NewProjectPage() {
     currency: existingProject?.currency || settings.currency || '₺',
     type: existingProject?.type || '',
     estimatedHours: existingProject?.estimatedHours || '',
+    priorWorkedHours: existingPriorHours,
     description: existingProject?.description || '',
     color: existingProject?.color || '#4a7c59',
     files: existingProject?.files || [],
@@ -88,6 +97,7 @@ export default function NewProjectPage() {
       ...form,
       hourlyRate: parseFloat(form.hourlyRate) || 0,
       estimatedHours: parseFloat(form.estimatedHours) || 0,
+      priorWorkedHours: parseFloat(form.priorWorkedHours) || 0,
     };
 
     if (isEditMode) {
@@ -181,8 +191,8 @@ export default function NewProjectPage() {
             </div>
           </div>
 
-          {/* Hourly Rate + Estimated Time */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Hourly Rate + Estimated Time + Prior Worked Time */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-semibold text-on-surface mb-1.5">
                 Hourly Rate
@@ -228,6 +238,25 @@ export default function NewProjectPage() {
                   placeholder="e.g. 100"
                   value={form.estimatedHours}
                   onChange={e => setForm({ ...form, estimatedHours: e.target.value })}
+                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-surface-container border border-outline-variant/30 text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all text-sm"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-on-surface mb-1.5">
+                Prior Worked Time (hours)
+              </label>
+              <div className="relative">
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 material-symbols-outlined text-[18px] text-outline">
+                  history
+                </span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  placeholder="e.g. 10.5"
+                  value={form.priorWorkedHours}
+                  onChange={e => setForm({ ...form, priorWorkedHours: e.target.value })}
                   className="w-full pl-10 pr-4 py-3 rounded-xl bg-surface-container border border-outline-variant/30 text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all text-sm"
                 />
               </div>
