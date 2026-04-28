@@ -2,6 +2,10 @@
   command = "npm install && npm run build"
   publish = "dist"
 
+[build.environment]
+  VITE_SUPABASE_URL = "https://lthtymobqdjxqjvrdjlg.supabase.co"
+  VITE_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx0aHR5bW9icWRqeHFqdnJkamxnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczMTc5OTksImV4cCI6MjA5Mjg5Mzk5OX0.fsR-4e7glNsdyWb8k54wUvtRA0zrKGrdxwTPsw1TMI4"
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
