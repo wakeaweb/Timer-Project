@@ -4,7 +4,7 @@ import { formatDuration } from '../utils/timeUtils';
 /**
  * Büyük zamanlayıcı sayacı — TimerPage'de kullanılır
  */
-export default function TimerDisplay({ startTime, isRunning = true, initialMs = 0, isPaused = false }) {
+export default function TimerDisplay({ startTime, isRunning = true, initialMs = 0, isPaused = false, variant = 'default' }) {
   const [elapsed, setElapsed] = useState(initialMs);
 
   useEffect(() => {
@@ -26,6 +26,10 @@ export default function TimerDisplay({ startTime, isRunning = true, initialMs = 
 
   const formatted = formatDuration(elapsed);
   const [hours, minutes, seconds] = formatted.split(':');
+
+  if (variant === 'bare') {
+    return <>{formatted}</>;
+  }
 
   return (
     <div className="flex flex-col items-center">

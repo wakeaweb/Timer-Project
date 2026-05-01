@@ -6,12 +6,50 @@ export default function TaskList({ projectId }) {
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [editingId, setEditingId] = useState(null);
   const [editText, setEditText] = useState('');
+  const [dragId, setDragId] = useState(null);
+  const [dragOverId, setDragOverId] = useState(null);
   const textareaRef = useRef(null);
   const editRef = useRef(null);
 
   const projectTasks = tasks
     .filter(t => t.projectId === projectId)
-    .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    .sort((a, b) => {
+      if (a.isCompleted !== b.isCompleted) return a.isCompleted ? 1 : -1;
+      return new Date(a.createdAt) - new Date(b.createdAt);
+    });
+
+  const incompleteTasks = projectTasks.filter(t => !t.isCompleted);
+
+  const handleDragStart = (id) => setDragId(id);
+  const handleDragOver = (e, id) => {
+    e.preventDefault();
+    if (id !== dragOverId) setDragOverId(id);
+  };
+  const handleDragEnd = () => { setDragId(null); setDragOverId(null); };
+  const handleDrop = (e, targetId) => {
+    e.preventDefault();
+    const sourceId = dragId;
+    setDragId(null);
+    setDragOverId(null);
+    if (!sourceId || sourceId === targetId) return;
+    const target = incompleteTasks.find(t => t.id === targetId);
+    if (!target || target.isCompleted) return;
+    const reordered = [...incompleteTasks];
+    const fromIdx = reordered.findIndex(t => t.id === sourceId);
+    const toIdx = reordered.findIndex(t => t.id === targetId);
+    if (fromIdx < 0 || toIdx < 0) return;
+    const [moved] = reordered.splice(fromIdx, 1);
+    reordered.splice(toIdx, 0, moved);
+    const newIdx = reordered.findIndex(t => t.id === sourceId);
+    const prev = reordered[newIdx - 1];
+    const next = reordered[newIdx + 1];
+    let newMs;
+    if (prev && next) newMs = (new Date(prev.createdAt).getTime() + new Date(next.createdAt).getTime()) / 2;
+    else if (prev) newMs = new Date(prev.createdAt).getTime() + 1000;
+    else if (next) newMs = new Date(next.createdAt).getTime() - 1000;
+    else newMs = Date.now();
+    editTask(sourceId, { createdAt: new Date(newMs).toISOString() });
+  };
 
   // Auto-resize textarea
   const autoResize = (el) => {
@@ -112,10 +150,23 @@ export default function TaskList({ projectId }) {
           {projectTasks.map(task => (
             <li
               key={task.id}
-              className={`flex items-start gap-3 p-3 rounded-xl transition-all border ${
+              draggable={!task.isCompleted && editingId !== task.id}
+              onDragStart={() => handleDragStart(task.id)}
+              onDragOver={(e) => !task.isCompleted && handleDragOver(e, task.id)}
+              onDrop={(e) => !task.isCompleted && handleDrop(e, task.id)}
+              onDragEnd={handleDragEnd}
+              className={`flex items-start gap-2 p-3 rounded-xl transition-all border ${
                 task.isCompleted ? 'bg-surface-container-low/50 border-transparent opacity-60' : 'bg-surface-container border-outline-variant/20 shadow-sm hover:shadow-md'
-              }`}
+              } ${dragId === task.id ? 'opacity-40' : ''} ${dragOverId === task.id && dragId !== task.id ? 'ring-2 ring-primary/40' : ''}`}
             >
+              {!task.isCompleted && (
+                <span
+                  className="mt-1 text-outline-variant cursor-grab active:cursor-grabbing select-none shrink-0"
+                  title="Drag to reorder"
+                >
+                  <span className="material-symbols-outlined text-[16px]">drag_indicator</span>
+                </span>
+              )}
               <button
                 onClick={() => editTask(task.id, { isCompleted: !task.isCompleted })}
                 className={`mt-0.5 w-5 h-5 rounded flex items-center justify-center border transition-colors shrink-0 ${

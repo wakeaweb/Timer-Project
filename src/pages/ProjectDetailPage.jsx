@@ -314,74 +314,93 @@ export default function ProjectDetailPage() {
       {/* ──────────────── SECTION 2: Timer + Stats ──────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 lg:gap-4 mb-6 lg:mb-8">
         {/* Active Session Card */}
-        <div className="sm:col-span-2 lg:col-span-1 bg-surface-container-lowest border border-outline-variant/20 rounded-2xl p-4 lg:p-6 flex flex-col items-center justify-center relative">
-          {/* Minify Button */}
-          {isActiveProject && (
+        {isActiveProject ? (
+          <div className="sm:col-span-2 lg:col-span-1 bg-gradient-to-br from-primary to-primary-container rounded-2xl p-5 lg:p-6 text-on-primary relative overflow-hidden flex flex-col justify-between min-h-[200px]">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -translate-y-1/3 translate-x-1/3" />
+            <div className="absolute bottom-0 left-0 w-20 h-20 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/3" />
+
             <button
               onClick={handleMinify}
-              className="absolute top-3 right-3 w-7 h-7 rounded-full bg-surface-container hover:bg-surface-container-high flex items-center justify-center transition-colors text-on-surface-variant"
+              className="absolute top-3 right-3 w-7 h-7 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center transition-colors text-on-primary z-10"
               title="Minify (Picture-in-Picture)"
             >
               <span className="material-symbols-outlined text-[16px]">picture_in_picture_alt</span>
             </button>
-          )}
 
-          {isActiveProject ? (
-            <div className="flex flex-col items-center">
-              <TimerDisplay
-                startTime={activeSession.isPaused ? new Date().toISOString() : (activeSession.lastResumedAt ? new Date(activeSession.lastResumedAt).toISOString() : activeSession.startTime)}
-                isRunning={!activeSession.isPaused}
-                initialMs={activeSession.accumulatedMs}
-                isPaused={activeSession.isPaused}
-              />
-              {/* Controls */}
-              <div className="flex items-center gap-3 mt-4">
-                {activeSession.isPaused ? (
-                  <button
-                    onClick={handleResume}
-                    className="flex items-center gap-2 px-5 py-2 rounded-full text-sm font-semibold bg-tertiary text-on-tertiary hover:bg-tertiary/90 transition-all shadow-card"
-                  >
-                    <span className="material-symbols-outlined text-[16px]">play_arrow</span>
-                    Resume
-                  </button>
-                ) : (
-                  <button
-                    onClick={handlePause}
-                    className="flex items-center gap-2 px-5 py-2 rounded-full text-sm font-semibold border border-outline-variant/30 text-on-surface hover:bg-surface-container-high transition-all"
-                  >
-                    <span className="material-symbols-outlined text-[16px]">pause</span>
-                    Pause
-                  </button>
-                )}
-                <button
-                  onClick={handleStop}
-                  className="flex items-center gap-2 px-5 py-2 rounded-full text-sm font-semibold bg-error text-on-error hover:bg-error/90 transition-all shadow-card"
-                >
-                  <span className="material-symbols-outlined text-[16px]">stop_circle</span>
-                  Stop
-                </button>
-              </div>
+            <div className="relative z-10 flex items-center gap-2 mb-2">
+              {activeSession.isPaused ? (
+                <span className="material-symbols-outlined text-[14px] text-on-primary/80">pause</span>
+              ) : (
+                <span className="w-2 h-2 rounded-full bg-on-primary animate-pulse-dot" />
+              )}
+              <span className="text-[11px] font-semibold uppercase tracking-widest text-on-primary/80">
+                {activeSession.isPaused ? 'Paused' : 'Active Now'}
+              </span>
             </div>
-          ) : (
-            <div className="flex flex-col items-center py-4">
-              <p className="text-xs font-semibold uppercase tracking-widest text-on-surface-variant mb-3">
-                {isCompleted ? 'Project Completed' : 'No Active Session'}
+
+            <div className="relative z-10">
+              <p className="font-headline text-4xl lg:text-5xl font-bold font-mono-tabular tracking-tight text-on-primary mb-1">
+                <TimerDisplay
+                  startTime={activeSession.isPaused ? new Date().toISOString() : (activeSession.lastResumedAt ? new Date(activeSession.lastResumedAt).toISOString() : activeSession.startTime)}
+                  isRunning={!activeSession.isPaused}
+                  initialMs={activeSession.accumulatedMs}
+                  isPaused={activeSession.isPaused}
+                  variant="bare"
+                />
               </p>
-              <p className="font-headline text-4xl lg:text-5xl font-bold font-mono-tabular text-on-surface/20 leading-none">
-                00:00<span className="text-2xl lg:text-3xl">:00</span>
+              <p className="text-xs text-on-primary/60">
+                Started {new Date(activeSession.startTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
               </p>
-              {!isCompleted && (
+            </div>
+
+            <div className="relative z-10 flex items-center gap-2 mt-4">
+              {activeSession.isPaused ? (
                 <button
-                  onClick={handleStart}
-                  className="flex items-center gap-2 px-5 py-2 rounded-full text-sm font-semibold bg-primary text-on-primary hover:bg-primary/90 transition-all shadow-card mt-4"
+                  onClick={handleResume}
+                  className="flex items-center justify-center gap-2 bg-white/20 hover:bg-white/30 px-4 py-2 rounded-full text-sm font-semibold transition-all border border-white/20 flex-1"
                 >
-                  <span className="material-symbols-outlined text-[16px]">play_arrow</span>
-                  Start Working
+                  <span className="material-symbols-outlined text-[18px]">play_arrow</span>
+                  Resume
+                </button>
+              ) : (
+                <button
+                  onClick={handlePause}
+                  className="flex items-center justify-center gap-2 bg-white/15 hover:bg-white/25 px-4 py-2 rounded-full text-sm font-semibold transition-all border border-white/20 flex-1"
+                >
+                  <span className="material-symbols-outlined text-[18px]">pause</span>
+                  Pause
                 </button>
               )}
+              <button
+                onClick={handleStop}
+                className="flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 px-4 py-2 rounded-full text-sm font-semibold transition-all border border-white/15 flex-1"
+              >
+                <span className="material-symbols-outlined text-[18px]">stop_circle</span>
+                Stop
+              </button>
             </div>
-          )}
-        </div>
+          </div>
+        ) : (
+          <div className="sm:col-span-2 lg:col-span-1 bg-gradient-to-br from-primary-fixed to-primary-fixed-dim rounded-2xl p-6 flex flex-col items-center justify-center min-h-[200px]">
+            <span className="material-symbols-outlined text-primary mb-2 text-[36px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+              timer
+            </span>
+            <p className="text-on-surface font-semibold mb-1 text-base">
+              {isCompleted ? 'Project Completed' : 'No Active Session'}
+            </p>
+            <p className="text-on-surface-variant text-xs mb-3">
+              {isCompleted ? 'This project is done' : 'Start tracking time'}
+            </p>
+            {!isCompleted && (
+              <button
+                onClick={handleStart}
+                className="bg-primary text-on-primary px-4 py-1.5 rounded-full text-xs font-semibold hover:bg-primary/90 transition-all"
+              >
+                Start Working
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Total Time */}
         <StatCard
