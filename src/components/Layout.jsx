@@ -4,12 +4,14 @@ import SideNavBar from './SideNavBar';
 import MobileBottomNav from './MobileBottomNav';
 import ActiveTimerBanner from './ActiveTimerBanner';
 import ThemeToggle from './ThemeToggle';
+import AutoPipController from './AutoPipController';
 
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-background">
+      <AutoPipController />
       {/* Desktop Sidebar */}
       <SideNavBar mobileOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
