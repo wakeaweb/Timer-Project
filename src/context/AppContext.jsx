@@ -203,6 +203,17 @@ export function AppProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState);
   const { user, isAuthenticated } = useAuth();
   const syncTimeoutRef = useRef(null);
+  // Yakın zamanda silinen ID'ler — realtime echo'sunun ya da uçuştaki upsert'in
+  // kaydı geri canlandırmasını engellemek için kullanılır.
+  const recentlyDeletedRef = useRef(new Map()); // id -> timeoutId
+
+  const markDeleted = useCallback((id) => {
+    if (!id) return;
+    const existing = recentlyDeletedRef.current.get(id);
+    if (existing) clearTimeout(existing);
+    const t = setTimeout(() => recentlyDeletedRef.current.delete(id), 8000);
+    recentlyDeletedRef.current.set(id, t);
+  }, []);
 
   // Uygulama başladığında ve kullanıcı değiştiğinde verileri yükle
   useEffect(() => {
@@ -284,7 +295,20 @@ export function AppProvider({ children }) {
   // Realtime subscription'ı başlat
   useEffect(() => {
     if (isAuthenticated && user) {
-      const unsubscribe = subscribeToChanges(user.id, dispatch);
+      // Echo guard: yakın zamanda silinen kayıtların REMOTE_UPSERT echo'sunu yoksay
+      const guardedDispatch = (action) => {
+        if (
+          (action.type === 'REMOTE_UPSERT_TASK' ||
+            action.type === 'REMOTE_UPSERT_SESSION' ||
+            action.type === 'REMOTE_UPSERT_PROJECT') &&
+          action.payload?.id &&
+          recentlyDeletedRef.current.has(action.payload.id)
+        ) {
+          return;
+        }
+        dispatch(action);
+      };
+      const unsubscribe = subscribeToChanges(user.id, guardedDispatch);
       return () => unsubscribe();
     }
   }, [isAuthenticated, user]);
@@ -319,10 +343,14 @@ export function AppProvider({ children }) {
         syncTimeoutRef.current = setTimeout(async () => {
           dispatch({ type: 'SET_SYNCING', payload: true });
           try {
+            // Recently deleted ID'leri payload'dan filtrele — bu, t=0'da
+            // schedule edilmiş upsert'in t=1500'da çalışırken closure'daki
+            // eski state'i kullanıp silinmiş kaydı diriltmesini engeller.
+            const notDeleted = (item) => !recentlyDeletedRef.current.has(item.id);
             await Promise.all([
-              projectsApi.upsert(state.projects, user.id),
-              sessionsApi.upsert(state.sessions, user.id),
-              tasksApi.upsert(state.tasks, user.id),
+              projectsApi.upsert(state.projects.filter(notDeleted), user.id),
+              sessionsApi.upsert(state.sessions.filter(notDeleted), user.id),
+              tasksApi.upsert(state.tasks.filter(notDeleted), user.id),
               settingsApi.upsert(state.settings, user.id),
             ]);
           } catch (err) {
@@ -390,11 +418,15 @@ export function AppProvider({ children }) {
   }, [state.sessions]);
 
   const removeProject = useCallback(async (id) => {
+    markDeleted(id);
+    // İlişkili oturumların ID'lerini de işaretle (cascade silme echo'su için)
+    state.sessions.filter(s => s.projectId === id).forEach(s => markDeleted(s.id));
+    state.tasks.filter(t => t.projectId === id).forEach(t => markDeleted(t.id));
     dispatch({ type: 'DELETE_PROJECT', payload: id });
     if (isAuthenticated) {
       try { await projectsApi.remove(id); } catch (e) { console.error(e); }
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, markDeleted, state.sessions, state.tasks]);
 
   const startTimer = useCallback(async (projectId, description = '') => {
     if (state.activeSession) {
@@ -508,11 +540,12 @@ export function AppProvider({ children }) {
   }, []);
 
   const removeSession = useCallback(async (id) => {
+    markDeleted(id);
     dispatch({ type: 'DELETE_SESSION', payload: id });
     if (isAuthenticated) {
       try { await sessionsApi.remove(id); } catch (e) { console.error(e); }
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, markDeleted]);
 
   const addTaskAction = useCallback((projectId, title) => {
     const task = {
@@ -530,11 +563,12 @@ export function AppProvider({ children }) {
   }, []);
 
   const removeTaskAction = useCallback(async (id) => {
+    markDeleted(id);
     dispatch({ type: 'DELETE_TASK', payload: id });
     if (isAuthenticated) {
       try { await tasksApi.remove(id); } catch (e) { console.error(e); }
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, markDeleted]);
 
   const updateSettings = useCallback((updates) => {
     dispatch({ type: 'UPDATE_SETTINGS', payload: updates });
