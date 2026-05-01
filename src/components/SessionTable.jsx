@@ -4,10 +4,16 @@ import { formatDateRelative, formatTimeRange, formatDuration } from '../utils/ti
 /**
  * Seans listesi tablosu — Proje Detay sayfasında
  */
-export default function SessionTable({ sessions, maxRows, onEditSession }) {
+export default function SessionTable({ sessions, maxRows, onEditSession, onDeleteSession }) {
   const displayed = maxRows ? sessions.slice(0, maxRows) : sessions;
   const [editingId, setEditingId] = useState(null);
   const [editText, setEditText] = useState('');
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+
+  const handleDelete = (sessionId) => {
+    if (onDeleteSession) onDeleteSession(sessionId);
+    setConfirmDeleteId(null);
+  };
 
   const startEditing = (session) => {
     setEditingId(session.id);
@@ -106,9 +112,39 @@ export default function SessionTable({ sessions, maxRows, onEditSession }) {
                   )}
                 </td>
                 <td className="py-4 text-right">
-                  <span className="font-mono-tabular text-sm font-semibold text-primary">
-                    {formatDuration(duration)}
-                  </span>
+                  <div className="flex items-center justify-end gap-2 group/dur">
+                    <span className="font-mono-tabular text-sm font-semibold text-primary">
+                      {formatDuration(duration)}
+                    </span>
+                    {onDeleteSession && session.endTime && (
+                      confirmDeleteId === session.id ? (
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handleDelete(session.id)}
+                            className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-error text-on-error hover:bg-error/90 transition-colors"
+                            title="Confirm delete"
+                          >
+                            Delete
+                          </button>
+                          <button
+                            onClick={() => setConfirmDeleteId(null)}
+                            className="text-outline-variant hover:text-on-surface transition-colors"
+                            title="Cancel"
+                          >
+                            <span className="material-symbols-outlined text-[16px]">close</span>
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmDeleteId(session.id)}
+                          className="opacity-0 group-hover/dur:opacity-100 text-outline-variant hover:text-error transition-all shrink-0"
+                          title="Delete session"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">close</span>
+                        </button>
+                      )
+                    )}
+                  </div>
                 </td>
               </tr>
             );

@@ -123,6 +123,15 @@ function reducer(state, action) {
         activeSession: null,
       };
     }
+    case 'DELETE_SESSION':
+      return {
+        ...state,
+        sessions: state.sessions.filter(s => s.id !== action.payload),
+        activeSession:
+          state.activeSession?.sessionId === action.payload
+            ? null
+            : state.activeSession,
+      };
     case 'ADD_TASK':
       return { ...state, tasks: [...state.tasks, action.payload] };
     case 'UPDATE_TASK':
@@ -159,10 +168,14 @@ function reducer(state, action) {
         sessions: state.sessions.filter(s => s.projectId !== action.payload),
       };
     case 'REMOTE_UPSERT_SESSION': {
-      const exists = state.sessions.some(s => s.id === action.payload.id);
+      const local = state.sessions.find(s => s.id === action.payload.id);
+      // Guard: stale echo'nun local stop state'ini ezmesini engelle
+      if (local && local.endTime && !action.payload.endTime) {
+        return state;
+      }
       return {
         ...state,
-        sessions: exists
+        sessions: local
           ? state.sessions.map(s => s.id === action.payload.id ? { ...s, ...action.payload } : s)
           : [...state.sessions, action.payload],
       };
@@ -223,16 +236,40 @@ export function AppProvider({ children }) {
             settingsApi.fetch(user.id),
           ]);
 
+          const mergedSessions = sbSessions.length > 0 ? sbSessions : localSessions;
+          const activeId = localActive?.sessionId;
+          const orphanSessions = mergedSessions.filter(
+            s => !s.endTime && s.id !== activeId
+          );
+          const healedSessions = mergedSessions.map(s => {
+            if (s.endTime || s.id === activeId) return s;
+            const startMs = new Date(s.startTime).getTime();
+            const dur = s.duration || 0;
+            return { ...s, endTime: new Date(startMs + dur).toISOString(), duration: dur };
+          });
+
           dispatch({
             type: 'INIT',
             payload: {
               projects: sbProjects.length > 0 ? sbProjects : localProjects,
-              sessions: sbSessions.length > 0 ? sbSessions : localSessions,
+              sessions: healedSessions,
               tasks: sbTasks.length > 0 ? sbTasks : localTasks,
               settings: sbSettings || localSettings,
               activeSession: localActive,
             },
           });
+
+          if (orphanSessions.length > 0) {
+            const fixed = orphanSessions.map(s => {
+              const startMs = new Date(s.startTime).getTime();
+              const dur = s.duration || 0;
+              return { ...s, endTime: new Date(startMs + dur).toISOString(), duration: dur };
+            });
+            try {
+              await sessionsApi.upsert(fixed, user.id);
+              console.log(`Auto-healed ${fixed.length} orphan session(s)`);
+            } catch (e) { console.error('Orphan heal error:', e); }
+          }
         } catch (error) {
           console.error('Supabase fetch error:', error);
         } finally {
@@ -423,12 +460,31 @@ export function AppProvider({ children }) {
   const stopTimer = useCallback(async () => {
     if (!state.activeSession) return;
     const sessionId = state.activeSession.sessionId;
+
+    const now = Date.now();
+    let finalDuration = state.activeSession.accumulatedMs;
+    if (!state.activeSession.isPaused) {
+      const lastResumedAt = state.activeSession.lastResumedAt || new Date(state.activeSession.startTime).getTime();
+      finalDuration += (now - lastResumedAt);
+    }
+    const endTime = new Date(now).toISOString();
+
     dispatch({ type: 'STOP_TIMER' });
+
+    if (isAuthenticated && user) {
+      const existing = state.sessions.find(s => s.id === sessionId);
+      if (existing) {
+        try {
+          await sessionsApi.upsert([{ ...existing, endTime, duration: finalDuration }], user.id);
+        } catch (e) { console.error('Stop sync error:', e); }
+      }
+    }
+
     try {
       await LocalNotifications.cancel({ notifications: [{ id: 1 }] });
     } catch (e) {}
     return sessionId;
-  }, [state.activeSession]);
+  }, [state.activeSession, state.sessions, isAuthenticated, user]);
 
   const completeProject = useCallback((id) => {
     if (state.activeSession?.projectId === id) {
@@ -450,6 +506,13 @@ export function AppProvider({ children }) {
   const editSession = useCallback((id, updates) => {
     dispatch({ type: 'UPDATE_SESSION', payload: { id, updates } });
   }, []);
+
+  const removeSession = useCallback(async (id) => {
+    dispatch({ type: 'DELETE_SESSION', payload: id });
+    if (isAuthenticated) {
+      try { await sessionsApi.remove(id); } catch (e) { console.error(e); }
+    }
+  }, [isAuthenticated]);
 
   const addTaskAction = useCallback((projectId, title) => {
     const task = {
@@ -489,6 +552,7 @@ export function AppProvider({ children }) {
     stopTimer,
     completeProject,
     editSession,
+    removeSession,
     addTask: addTaskAction,
     editTask: editTaskAction,
     removeTask: removeTaskAction,

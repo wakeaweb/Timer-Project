@@ -18,7 +18,7 @@ export default function ProjectDetailPage() {
   const {
     projects, sessions, activeSession, tasks,
     startTimer, pauseTimer, resumeTimer, stopTimer,
-    removeProject, editProject, editSession, completeProject, reopenProject,
+    removeProject, editProject, editSession, removeSession, completeProject, reopenProject,
   } = useApp();
 
   const project = projects.find(p => p.id === id);
@@ -74,8 +74,8 @@ export default function ProjectDetailPage() {
   const handlePause = () => pauseTimer();
   const handleResume = () => resumeTimer();
 
-  const handleStop = () => {
-    const sessionId = stopTimer();
+  const handleStop = async () => {
+    const sessionId = await stopTimer();
     if (sessionId) {
       setStoppedSessionId(sessionId);
       setModalOpen(true);
@@ -437,6 +437,7 @@ export default function ProjectDetailPage() {
             <SessionTable
               sessions={projectSessions}
               onEditSession={(sessionId, updates) => editSession(sessionId, updates)}
+              onDeleteSession={(sessionId) => removeSession(sessionId)}
             />
           </div>
         )}
