@@ -224,7 +224,7 @@ export default function ProjectDetailPage() {
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between my-4 lg:my-8 gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 sm:gap-3 mb-1 flex-wrap">
-            <h1 className="font-headline text-xl sm:text-2xl lg:text-[2rem] font-bold text-on-surface">
+            <h1 className="font-headline text-xl sm:text-2xl lg:text-[1.5rem] font-bold text-on-surface">
               {project.name}
             </h1>
             <span className={`text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-full ${statusColors[project.status]}`}>
@@ -430,11 +430,10 @@ export default function ProjectDetailPage() {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-1.5 sm:gap-2 pb-3 px-1.5 sm:px-2 text-xs sm:text-sm font-semibold transition-colors border-b-2 whitespace-nowrap ${
-              activeTab === tab.id
+            className={`flex items-center gap-1.5 sm:gap-2 pb-3 px-1.5 sm:px-2 text-xs sm:text-sm font-semibold transition-colors border-b-2 whitespace-nowrap ${activeTab === tab.id
                 ? 'border-primary text-primary'
                 : 'border-transparent text-on-surface-variant hover:text-on-surface'
-            }`}
+              }`}
           >
             <span className="material-symbols-outlined text-[16px] sm:text-[18px]">{tab.icon}</span>
             {tab.label}
