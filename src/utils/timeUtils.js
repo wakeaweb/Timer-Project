@@ -165,7 +165,12 @@ export function getWorkingDays(sessions) {
     }
     const day = daysMap.get(dateStr);
     day.sessions.push(session);
-    day.totalMs += session.duration || 0;
+    const ms = session.duration || (
+      session.endTime
+        ? new Date(session.endTime) - new Date(session.startTime)
+        : 0
+    );
+    day.totalMs += ms;
   });
 
   return Array.from(daysMap.values()).sort(
