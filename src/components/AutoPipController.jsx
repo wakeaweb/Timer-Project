@@ -17,6 +17,9 @@ export default function AutoPipController() {
   const pipWindowRef = useRef(null);
   const intervalRef = useRef(null);
   const manuallyClosedRef = useRef(false);
+  // Document PiP API user gesture (transient activation) gerektirir.
+  // Son user gesture zamanını izleyip 4.5sn içinde değilse uyarı ver.
+  const lastGestureRef = useRef(Date.now());
   // Tüm callback'lere stale closure olmadan erişebilmek için ref'te tut
   const stateRef = useRef({ activeSession, projects, pauseTimer, resumeTimer, stopTimer });
 
@@ -43,6 +46,15 @@ export default function AutoPipController() {
       if (!session || pipWindowRef.current) return;
       const project = projs.find(p => p.id === session.projectId);
       if (!project) return;
+
+      const sinceGesture = Date.now() - lastGestureRef.current;
+      if (sinceGesture > 4500) {
+        console.warn(
+          `[AutoPiP] Tarayıcı user gesture istiyor (son etkileşim ${Math.round(sinceGesture / 1000)}s önce). ` +
+          'Sekmeye dönüp herhangi bir yere tıklayıp sonra ayrıl, PiP otomatik açılır.'
+        );
+        return;
+      }
 
       let pipWindow;
       try {
@@ -160,8 +172,16 @@ export default function AutoPipController() {
       }
     };
 
+    const refreshGesture = () => { lastGestureRef.current = Date.now(); };
+    document.addEventListener('mousedown', refreshGesture, true);
+    document.addEventListener('keydown', refreshGesture, true);
+    document.addEventListener('touchstart', refreshGesture, true);
     document.addEventListener('visibilitychange', handleVisibility);
+
     return () => {
+      document.removeEventListener('mousedown', refreshGesture, true);
+      document.removeEventListener('keydown', refreshGesture, true);
+      document.removeEventListener('touchstart', refreshGesture, true);
       document.removeEventListener('visibilitychange', handleVisibility);
       closePip();
     };
