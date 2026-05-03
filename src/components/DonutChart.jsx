@@ -9,6 +9,8 @@ export default function DonutChart({ total, segments, title }) {
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
 
+  // Segmentlerin sayısal toplamını kendi hesapla — total prop string olabilir
+  const totalValue = segments.reduce((sum, seg) => sum + (seg.value || 0), 0);
   let currentOffset = 0;
 
   return (
@@ -31,7 +33,7 @@ export default function DonutChart({ total, segments, title }) {
             />
             {/* Segments */}
             {segments.map((seg, i) => {
-              const percentage = total > 0 ? seg.value / total : 0;
+              const percentage = totalValue > 0 ? seg.value / totalValue : 0;
               const dashLength = circumference * percentage;
               const dashOffset = circumference * currentOffset;
               currentOffset += percentage;
