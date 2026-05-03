@@ -6,12 +6,12 @@ import DonutChart from '../components/DonutChart';
 import ProjectDetailDrawer from '../components/ProjectDetailDrawer';
 import {
   calculateTotalDuration, msToHours, formatDurationShort,
-  getLast7DaysData, getThisWeekSessions, getThisMonthSessions,
-  getLast30DaysSessions, countActiveDays,
+  getLast7DaysData, getLast30DaysSessions, getThisMonthSessions,
+  countActiveDays,
 } from '../utils/timeUtils';
 
 const PERIODS = [
-  { key: 'week', label: 'This Week' },
+  { key: 'last7', label: 'Last 7 Days' },
   { key: 'month', label: 'This Month' },
   { key: 'last30', label: 'Last 30 Days' },
   { key: 'all', label: 'All Time' },
@@ -21,13 +21,16 @@ export default function ReportsPage() {
   const { projects, sessions, settings } = useApp();
   const currency = settings.currency || '₺';
 
-  const [period, setPeriod] = useState('week');
+  const [period, setPeriod] = useState('last7');
   const [selectedProject, setSelectedProject] = useState(null);
 
   // Döneme göre filtreli seanslar
   const filteredSessions = useMemo(() => {
     switch (period) {
-      case 'week':   return getThisWeekSessions(sessions);
+      case 'last7': {
+        const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 7); cutoff.setHours(0,0,0,0);
+        return sessions.filter(s => s.endTime && new Date(s.startTime) >= cutoff);
+      }
       case 'month':  return getThisMonthSessions(sessions);
       case 'last30': return getLast30DaysSessions(sessions);
       default:       return sessions.filter(s => s.endTime);
