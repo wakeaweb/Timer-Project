@@ -2,12 +2,11 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig(({ command, mode }) => {
-  // Eğer Netlify üzerinde derleniyorsa (NETLIFY environment variable varsa) '/' kullan,
-  // Aksi halde (Capacitor, mobil uygulama için) './' kullanmaya devam et.
-  const isNetlify = process.env.NETLIFY === 'true';
+  // Web host (Netlify/Vercel) için '/' kullan, Capacitor (mobil) için './' kullan.
+  const isWebHost = process.env.NETLIFY === 'true' || process.env.VERCEL === '1';
 
   return {
-    base: isNetlify ? '/' : './',
+    base: isWebHost ? '/' : './',
     plugins: [react()],
     server: {
       port: 5173,
