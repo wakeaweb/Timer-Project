@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import html2pdf from 'html2pdf.js';
 import { useApp } from '../context/AppContext';
 import StatCard from '../components/StatCard';
@@ -146,26 +147,40 @@ async function downloadProjectInvoice(project, sessions, currency, periodLabel, 
     </div>
   </div>`;
 
+  // html2canvas, off-screen / fixed elementlerle güvenilir çalışmıyor.
+  // Görünür akışta render edip ekrana çıkmasını visibility:hidden ile engelliyoruz.
   const wrapper = document.createElement('div');
-  wrapper.style.position = 'fixed';
-  wrapper.style.left = '-10000px';
+  wrapper.style.position = 'absolute';
+  wrapper.style.left = '0';
   wrapper.style.top = '0';
-  wrapper.style.width = '794px'; // A4 width @ 96dpi
+  wrapper.style.width = '794px'; // A4 @ 96dpi
+  wrapper.style.zIndex = '-1';
+  wrapper.style.opacity = '0';
+  wrapper.style.pointerEvents = 'none';
   wrapper.innerHTML = html;
   document.body.appendChild(wrapper);
 
+  // Layout'un tamamlanması için bir frame bekle
+  await new Promise(r => requestAnimationFrame(() => r()));
+
   try {
-    await html2pdf().from(wrapper).set({
+    await html2pdf().from(wrapper.firstElementChild).set({
       filename: `${safeName} - ${periodLabel}.pdf`,
       margin: [10, 10, 10, 10],
       image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+      html2canvas: {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        windowWidth: 794,
+      },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
       pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
     }).save();
   } catch (err) {
     console.error('PDF download error:', err);
-    alert('PDF oluşturulurken bir hata oluştu.');
+    alert('PDF oluşturulurken bir hata oluştu: ' + (err?.message || err));
   } finally {
     document.body.removeChild(wrapper);
   }
@@ -191,6 +206,7 @@ function PeriodDropdown({ period, onChange }) {
 
 // ─── General Tab ─────────────────────────────────────────────────────────────
 function GeneralTab({ filteredSessions, projects, payments, currency, period }) {
+  const navigate = useNavigate();
   const projectStats = useMemo(() =>
     projects
       .map(project => {
@@ -265,7 +281,11 @@ function GeneralTab({ filteredSessions, projects, payments, currency, period }) 
         ) : (
           <div className="space-y-1">
             {projectStats.map(({ project, ms, billable, paid, remaining }) => (
-              <div key={project.id} className="rounded-xl p-3">
+              <div
+                key={project.id}
+                onClick={() => navigate(`/project/${project.id}`)}
+                className="rounded-xl p-3 cursor-pointer hover:bg-surface-container-low/50 transition-colors"
+              >
                 <div className="flex items-center justify-between mb-2 gap-3">
                   <div className="flex items-center gap-2 min-w-0 flex-1">
                     <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: project.color }} />
@@ -284,7 +304,10 @@ function GeneralTab({ filteredSessions, projects, payments, currency, period }) 
                       )}
                     </div>
                   </div>
-                  <span className="text-sm font-bold text-on-surface shrink-0">{formatDurationShort(ms)}</span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className="text-sm font-bold text-on-surface">{formatDurationShort(ms)}</span>
+                    <span className="material-symbols-outlined text-[18px] text-on-surface-variant">chevron_right</span>
+                  </div>
                 </div>
                 <div className="h-1.5 bg-surface-container-high rounded-full overflow-hidden">
                   <div className="h-full rounded-full transition-all duration-700" style={{ width: `${(ms / projectStats[0].ms) * 100}%`, backgroundColor: project.color }} />
