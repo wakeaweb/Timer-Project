@@ -5,6 +5,14 @@ function fmtDate(iso) {
   catch { return iso; }
 }
 
+// "336666" -> "336.666"  ;  "336666,5" -> "336.666,5"
+function formatThousands(raw) {
+  if (!raw) return '';
+  const [intPart, decPart] = raw.split(',');
+  const withDots = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return decPart !== undefined ? `${withDots},${decPart}` : withDots;
+}
+
 export default function PaymentModal({
   project,
   totalBilled = 0,
@@ -33,11 +41,23 @@ export default function PaymentModal({
     return () => { document.body.style.overflow = prev; };
   }, []);
 
+  // amount state'i ham string (sadece rakam ve opsiyonel virgül) — ekranda formatla göster
+  const handleAmountChange = (e) => {
+    let v = e.target.value.replace(/\./g, '');           // önce thousand-sep noktaları kaldır
+    v = v.replace(/[^\d,]/g, '');                         // rakam ve virgül dışını at
+    const firstComma = v.indexOf(',');
+    if (firstComma !== -1) {
+      v = v.slice(0, firstComma + 1) + v.slice(firstComma + 1).replace(/,/g, '');
+    }
+    setAmount(v);
+  };
+
+  const numericAmount = Number((amount || '').replace(',', '.'));
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    const value = Number(amount);
-    if (!value || value <= 0) return;
-    onSubmit?.({ amount: value, note: note.trim() || null });
+    if (!numericAmount || numericAmount <= 0) return;
+    onSubmit?.({ amount: numericAmount, note: note.trim() || null });
     setAmount('');
     setNote('');
   };
@@ -60,7 +80,7 @@ export default function PaymentModal({
           style={{ borderTopColor: project?.color, borderTopWidth: 3 }}
         >
           <div className="flex-1 min-w-0">
-            <h2 className="font-headline text-lg font-bold text-on-surface truncate">{project?.name}</h2>
+            <h2 className="font-headline text-sm sm:text-base font-bold text-on-surface leading-tight break-words">{project?.name}</h2>
             <p className="text-xs text-on-surface-variant mt-0.5">Record a Payment</p>
           </div>
           <button
@@ -78,13 +98,13 @@ export default function PaymentModal({
           <div className="grid grid-cols-3 gap-2">
             <div className="bg-surface-container rounded-xl p-3 text-center">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant">Billed</p>
-              <p className="text-base font-bold text-on-surface mt-1 font-mono-tabular">
+              <p className="text-[13px] font-bold text-on-surface mt-1 font-mono-tabular">
                 {currency}{Math.round(totalBilled).toLocaleString()}
               </p>
             </div>
             <div className="bg-surface-container rounded-xl p-3 text-center">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant">Paid</p>
-              <p className="text-base font-bold text-on-surface mt-1 font-mono-tabular">
+              <p className="text-[13px] font-bold text-on-surface mt-1 font-mono-tabular">
                 {currency}{Math.round(totalPaid).toLocaleString()}
               </p>
             </div>
@@ -107,15 +127,14 @@ export default function PaymentModal({
                   {currency}
                 </span>
                 <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={amount}
-                  onChange={e => setAmount(e.target.value)}
-                  placeholder="0.00"
+                  type="text"
+                  inputMode="decimal"
+                  value={formatThousands(amount)}
+                  onChange={handleAmountChange}
+                  placeholder="0"
                   required
                   autoFocus
-                  className="w-full pl-8 pr-3 py-2.5 rounded-xl bg-surface-container border border-outline-variant/30 text-on-surface text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+                  className="w-full pl-8 pr-3 py-2.5 rounded-xl bg-surface-container border border-outline-variant/30 text-on-surface text-sm font-medium font-mono-tabular focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
                 />
               </div>
             </div>
@@ -135,7 +154,7 @@ export default function PaymentModal({
 
             <button
               type="submit"
-              disabled={!Number(amount) || Number(amount) <= 0}
+              disabled={!numericAmount || numericAmount <= 0}
               className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary text-on-primary text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
             >
               <span className="material-symbols-outlined text-[18px]">check</span>
