@@ -17,11 +17,11 @@ export default function BarChart({ data, title, projects = [] }) {
     : [];
 
   return (
-    <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-xl p-6">
-      <div className="flex items-start justify-between mb-6 gap-4">
-        <h3 className="font-headline text-base font-semibold text-on-surface shrink-0">{title}</h3>
+    <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-xl p-4 sm:p-6 overflow-hidden">
+      <div className="flex items-start justify-between mb-6 gap-3 flex-wrap">
+        <h3 className="font-headline text-base font-semibold text-on-surface min-w-0">{title}</h3>
         {hasBreakdown && legendProjects.length > 0 && (
-          <div className="flex items-center gap-3 flex-wrap justify-end">
+          <div className="flex items-center gap-3 flex-wrap justify-start sm:justify-end min-w-0">
             {legendProjects.map(p => (
               <div key={p.color} className="flex items-center gap-1.5">
                 <div className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: p.color }} />
