@@ -272,10 +272,12 @@ function GeneralTab({ filteredSessions, projects, payments, currency, period }) 
       .sort((a, b) => b.ms - a.ms),
   [projects, filteredSessions, payments]);
 
-  const totalMs       = calculateTotalDuration(filteredSessions);
-  const totalBillable = projectStats.reduce((sum, ps) => sum + ps.billable, 0);
-  const activeDays    = countActiveDays(filteredSessions);
-  const avgDailyHours = activeDays > 0 ? Math.round((totalMs / activeDays / 3600000) * 10) / 10 : 0;
+  const totalMs        = calculateTotalDuration(filteredSessions);
+  const totalBillable  = projectStats.reduce((sum, ps) => sum + ps.billable, 0);
+  const totalPaid      = projectStats.reduce((sum, ps) => sum + ps.paid, 0);
+  const totalRemaining = projectStats.reduce((sum, ps) => sum + ps.remaining, 0);
+  const activeDays     = countActiveDays(filteredSessions);
+  const avgDailyHours  = activeDays > 0 ? Math.round((totalMs / activeDays / 3600000) * 10) / 10 : 0;
   const chartData     = getLast7DaysProjectData(filteredSessions, projects);
   const donutSegments = projectStats.slice(0, 5).map(ps => ({
     value: ps.ms, color: ps.project.color, label: ps.project.name, displayValue: formatDurationShort(ps.ms),
@@ -284,14 +286,19 @@ function GeneralTab({ filteredSessions, projects, payments, currency, period }) 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
-        <StatCard title="Total Tracked" value={formatDurationShort(totalMs)} subtitle={`${filteredSessions.length} sessions`} icon="schedule" />
         <StatCard
           title="Billable Amount"
-          value={totalBillable > 0 ? `${currency}${Math.round(totalBillable).toLocaleString()}` : '—'}
-          subtitle={totalBillable > 0 ? `${projectStats.filter(ps => ps.project.hourlyRate > 0).length} billable projects` : 'No hourly rate set'}
+          value={totalRemaining > 0 ? `${currency}${Math.round(totalRemaining).toLocaleString()}` : '—'}
+          subtitle={totalBillable > 0 ? `of ${currency}${Math.round(totalBillable).toLocaleString()} billed` : 'No hourly rate set'}
+          icon="account_balance_wallet"
+        />
+        <StatCard
+          title="Billed Amount"
+          value={totalPaid > 0 ? `${currency}${Math.round(totalPaid).toLocaleString()}` : '—'}
+          subtitle={totalPaid > 0 ? `${projectStats.filter(ps => ps.paid > 0).length} paid project${projectStats.filter(ps => ps.paid > 0).length !== 1 ? 's' : ''}` : 'No payments yet'}
           icon="payments"
         />
-        <StatCard title="Active Days" value={activeDays} subtitle={PERIODS.find(p => p.key === period)?.label} icon="calendar_today" />
+        <StatCard title="Total Tracked" value={formatDurationShort(totalMs)} subtitle={`${filteredSessions.length} sessions`} icon="schedule" />
         <StatCard
           title="Avg. Daily"
           value={<>{avgDailyHours} <span className="text-lg font-normal">hrs</span></>}
