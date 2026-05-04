@@ -71,6 +71,27 @@ export const fromDbTask = (t) => ({
   createdAt: t.created_at,
 });
 
+const toDbPayment = (p, userId) => ({
+  id: p.id,
+  user_id: userId,
+  project_id: p.projectId,
+  amount: p.amount,
+  currency: p.currency ?? '₺',
+  note: p.note ?? null,
+  paid_at: p.paidAt ?? new Date().toISOString(),
+  created_at: p.createdAt ?? new Date().toISOString(),
+});
+
+export const fromDbPayment = (p) => ({
+  id: p.id,
+  projectId: p.project_id,
+  amount: Number(p.amount),
+  currency: p.currency,
+  note: p.note,
+  paidAt: p.paid_at,
+  createdAt: p.created_at,
+});
+
 const toDbSettings = (s, userId) => ({
   user_id: userId,
   user_name: s.userName ?? 'Kullanıcı',
@@ -161,6 +182,33 @@ export const tasksApi = {
 
   async remove(id) {
     const { error } = await supabase.from('tasks').delete().eq('id', id);
+    if (error) throw error;
+  },
+};
+
+// ─── Payments API ─────────────────────────────────────────────────────
+
+export const paymentsApi = {
+  async fetchAll(userId) {
+    const { data, error } = await supabase
+      .from('payments')
+      .select('*')
+      .eq('user_id', userId)
+      .order('paid_at', { ascending: false });
+    if (error) throw error;
+    return (data || []).map(fromDbPayment);
+  },
+
+  async upsert(payments, userId) {
+    if (!payments.length) return;
+    const { error } = await supabase
+      .from('payments')
+      .upsert(payments.map(p => toDbPayment(p, userId)), { onConflict: 'id' });
+    if (error) throw error;
+  },
+
+  async remove(id) {
+    const { error } = await supabase.from('payments').delete().eq('id', id);
     if (error) throw error;
   },
 };

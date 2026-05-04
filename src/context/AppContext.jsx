@@ -1,12 +1,13 @@
 import React, { createContext, useContext, useReducer, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from './AuthContext';
-import { projectsApi, sessionsApi, tasksApi, settingsApi } from '../services/api';
+import { projectsApi, sessionsApi, tasksApi, settingsApi, paymentsApi } from '../services/api';
 import { subscribeToChanges } from '../services/realtimeSync';
 import {
   getProjects, saveProjects, 
   getSessions, saveSessions, 
   getActiveSession, setActiveSession, clearActiveSession,
   getTasks, saveTasks,
+  getPayments, savePayments,
   getSettings, saveSettings as storageSaveSettings,
   generateId,
 } from '../utils/storage';
@@ -19,6 +20,7 @@ const initialState = {
   projects: [],
   sessions: [],
   tasks: [],
+  payments: [],
   activeSession: null,
   settings: { userName: 'Kullanıcı', defaultHourlyRate: 0, currency: '₺' },
   isSyncing: false,
@@ -44,6 +46,7 @@ function reducer(state, action) {
         ...state,
         projects: state.projects.filter(p => p.id !== action.payload),
         sessions: state.sessions.filter(s => s.projectId !== action.payload),
+        payments: state.payments.filter(p => p.projectId !== action.payload),
         activeSession:
           state.activeSession?.projectId === action.payload
             ? null
@@ -166,6 +169,7 @@ function reducer(state, action) {
         ...state,
         projects: state.projects.filter(p => p.id !== action.payload),
         sessions: state.sessions.filter(s => s.projectId !== action.payload),
+        payments: state.payments.filter(p => p.projectId !== action.payload),
       };
     case 'REMOTE_UPSERT_SESSION': {
       const local = state.sessions.find(s => s.id === action.payload.id);
@@ -193,6 +197,22 @@ function reducer(state, action) {
     }
     case 'REMOTE_DELETE_TASK':
       return { ...state, tasks: state.tasks.filter(t => t.id !== action.payload) };
+
+    case 'ADD_PAYMENT':
+      return { ...state, payments: [...state.payments, action.payload] };
+    case 'DELETE_PAYMENT':
+      return { ...state, payments: state.payments.filter(p => p.id !== action.payload) };
+    case 'REMOTE_UPSERT_PAYMENT': {
+      const exists = state.payments.some(p => p.id === action.payload.id);
+      return {
+        ...state,
+        payments: exists
+          ? state.payments.map(p => p.id === action.payload.id ? { ...p, ...action.payload } : p)
+          : [...state.payments, action.payload],
+      };
+    }
+    case 'REMOTE_DELETE_PAYMENT':
+      return { ...state, payments: state.payments.filter(p => p.id !== action.payload) };
 
     default:
       return state;
@@ -222,6 +242,7 @@ export function AppProvider({ children }) {
       const localProjects = getProjects();
       const localSessions = getSessions();
       const localTasks = getTasks();
+      const localPayments = getPayments();
       const localSettings = getSettings();
       const localActive = getActiveSession();
 
@@ -231,6 +252,7 @@ export function AppProvider({ children }) {
           projects: localProjects,
           sessions: localSessions,
           tasks: localTasks,
+          payments: localPayments,
           activeSession: localActive,
           settings: localSettings,
         },
@@ -240,10 +262,11 @@ export function AppProvider({ children }) {
       if (isAuthenticated && user) {
         dispatch({ type: 'SET_SYNCING', payload: true });
         try {
-          const [sbProjects, sbSessions, sbTasks, sbSettings] = await Promise.all([
+          const [sbProjects, sbSessions, sbTasks, sbPayments, sbSettings] = await Promise.all([
             projectsApi.fetchAll(user.id),
             sessionsApi.fetchAll(user.id),
             tasksApi.fetchAll(user.id),
+            paymentsApi.fetchAll(user.id).catch(() => []),
             settingsApi.fetch(user.id),
           ]);
 
@@ -265,6 +288,7 @@ export function AppProvider({ children }) {
               projects: sbProjects.length > 0 ? sbProjects : localProjects,
               sessions: healedSessions,
               tasks: sbTasks.length > 0 ? sbTasks : localTasks,
+              payments: sbPayments.length > 0 ? sbPayments : localPayments,
               settings: sbSettings || localSettings,
               activeSession: localActive,
             },
@@ -300,7 +324,8 @@ export function AppProvider({ children }) {
         if (
           (action.type === 'REMOTE_UPSERT_TASK' ||
             action.type === 'REMOTE_UPSERT_SESSION' ||
-            action.type === 'REMOTE_UPSERT_PROJECT') &&
+            action.type === 'REMOTE_UPSERT_PROJECT' ||
+            action.type === 'REMOTE_UPSERT_PAYMENT') &&
           action.payload?.id &&
           recentlyDeletedRef.current.has(action.payload.id)
         ) {
@@ -333,6 +358,7 @@ export function AppProvider({ children }) {
       saveProjects(state.projects);
       saveSessions(state.sessions);
       saveTasks(state.tasks);
+      savePayments(state.payments);
       storageSaveSettings(state.settings);
       if (state.activeSession) setActiveSession(state.activeSession);
       else clearActiveSession();
@@ -351,6 +377,7 @@ export function AppProvider({ children }) {
               projectsApi.upsert(state.projects.filter(notDeleted), user.id),
               sessionsApi.upsert(state.sessions.filter(notDeleted), user.id),
               tasksApi.upsert(state.tasks.filter(notDeleted), user.id),
+              paymentsApi.upsert(state.payments.filter(notDeleted), user.id).catch(e => console.error('Payments sync error:', e)),
               settingsApi.upsert(state.settings, user.id),
             ]);
           } catch (err) {
@@ -361,7 +388,7 @@ export function AppProvider({ children }) {
         }, 1500); // 1.5 saniye debounce
       }
     }
-  }, [state.projects, state.sessions, state.tasks, state.settings, state.activeSession, state.isInitialized, isAuthenticated, user]);
+  }, [state.projects, state.sessions, state.tasks, state.payments, state.settings, state.activeSession, state.isInitialized, isAuthenticated, user]);
 
   // ─── Action Creators ───────────────────────────────
 
@@ -422,11 +449,12 @@ export function AppProvider({ children }) {
     // İlişkili oturumların ID'lerini de işaretle (cascade silme echo'su için)
     state.sessions.filter(s => s.projectId === id).forEach(s => markDeleted(s.id));
     state.tasks.filter(t => t.projectId === id).forEach(t => markDeleted(t.id));
+    state.payments.filter(p => p.projectId === id).forEach(p => markDeleted(p.id));
     dispatch({ type: 'DELETE_PROJECT', payload: id });
     if (isAuthenticated) {
       try { await projectsApi.remove(id); } catch (e) { console.error(e); }
     }
-  }, [isAuthenticated, markDeleted, state.sessions, state.tasks]);
+  }, [isAuthenticated, markDeleted, state.sessions, state.tasks, state.payments]);
 
   const startTimer = useCallback(async (projectId, description = '') => {
     if (state.activeSession) {
@@ -570,6 +598,29 @@ export function AppProvider({ children }) {
     }
   }, [isAuthenticated, markDeleted]);
 
+  const addPayment = useCallback(({ projectId, amount, note }) => {
+    const project = state.projects.find(p => p.id === projectId);
+    const payment = {
+      id: generateId(),
+      projectId,
+      amount: Number(amount) || 0,
+      currency: project?.currency || state.settings.currency || '₺',
+      note: note ?? null,
+      paidAt: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+    };
+    dispatch({ type: 'ADD_PAYMENT', payload: payment });
+    return payment;
+  }, [state.projects, state.settings]);
+
+  const removePayment = useCallback(async (id) => {
+    markDeleted(id);
+    dispatch({ type: 'DELETE_PAYMENT', payload: id });
+    if (isAuthenticated) {
+      try { await paymentsApi.remove(id); } catch (e) { console.error(e); }
+    }
+  }, [isAuthenticated, markDeleted]);
+
   const updateSettings = useCallback((updates) => {
     dispatch({ type: 'UPDATE_SETTINGS', payload: updates });
   }, []);
@@ -590,6 +641,8 @@ export function AppProvider({ children }) {
     addTask: addTaskAction,
     editTask: editTaskAction,
     removeTask: removeTaskAction,
+    addPayment,
+    removePayment,
     updateSettings,
     dispatch,
   };

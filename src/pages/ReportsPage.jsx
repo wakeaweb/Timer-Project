@@ -1,8 +1,10 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import html2pdf from 'html2pdf.js';
 import { useApp } from '../context/AppContext';
 import StatCard from '../components/StatCard';
 import BarChart from '../components/BarChart';
 import DonutChart from '../components/DonutChart';
+import PaymentModal from '../components/PaymentModal';
 import {
   calculateTotalDuration, msToHours, formatDurationShort,
   getLast30DaysSessions, getThisMonthSessions,
@@ -54,13 +56,16 @@ function getLast7DaysProjectData(sessions, projects) {
   return result;
 }
 
-// ─── PDF baskı penceresi ──────────────────────────────────────────────────────
-function printProjectInvoice(project, sessions, currency, periodLabel) {
+// ─── PDF doğrudan indir ───────────────────────────────────────────────────────
+async function downloadProjectInvoice(project, sessions, currency, periodLabel, payments = []) {
   const totalMs    = calculateTotalDuration(sessions);
   const totalHours = totalMs / 3600000;
   const hourlyRate = project.hourlyRate || 0;
   const totalAmt   = totalHours * hourlyRate;
+  const totalPaid  = payments.reduce((s, p) => s + (p.amount || 0), 0);
+  const remaining  = Math.max(totalAmt - totalPaid, 0);
   const today      = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  const safeName   = (project.name || 'project').replace(/[^a-z0-9-_ ]/gi, '_').trim();
 
   const rows = sessions.map(s => {
     const dur = s.duration || (s.endTime ? new Date(s.endTime) - new Date(s.startTime) : 0);
@@ -70,78 +75,100 @@ function printProjectInvoice(project, sessions, currency, periodLabel) {
       <tr>
         <td>${formatDate(s.startTime)}</td>
         <td class="num">${h.toFixed(2)} h</td>
-        <td>${s.description || '—'}</td>
+        <td>${(s.description || '—').replace(/</g, '&lt;')}</td>
         ${hourlyRate > 0 ? `<td class="num">${currency}${Math.round(amt).toLocaleString()}</td>` : ''}
       </tr>`;
   }).join('');
 
-  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
-  <title>${project.name} — Session Report</title>
-  <style>
-    * { margin:0; padding:0; box-sizing:border-box; }
-    body { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 12px; color: #1a1a1a; padding: 48px; }
-    .header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:36px; padding-bottom:24px; border-bottom:2px solid #e5e7eb; }
-    .brand { font-size:18px; font-weight:700; color:#333; }
-    .brand-sub { font-size:11px; color:#888; margin-top:2px; }
-    .project-block { text-align:right; }
-    .project-name { font-size:20px; font-weight:700; color:${project.color}; }
-    .project-client { font-size:12px; color:#666; margin-top:2px; }
-    .meta { display:flex; gap:32px; margin-bottom:28px; }
-    .meta-item label { font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:#999; }
-    .meta-item p { font-size:13px; font-weight:600; color:#333; margin-top:2px; }
-    table { width:100%; border-collapse:collapse; margin-bottom:0; }
-    thead tr { background:#f8f9fa; }
-    th { text-align:left; padding:10px 12px; font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:#888; font-weight:600; border-bottom:1px solid #e5e7eb; }
-    td { padding:10px 12px; border-bottom:1px solid #f3f4f6; color:#333; font-size:12px; vertical-align:middle; }
-    tr:last-child td { border-bottom:none; }
-    .num { text-align:right; font-variant-numeric:tabular-nums; }
-    .footer { margin-top:0; padding:14px 12px; background:#f8f9fa; border-top:2px solid #e5e7eb; display:flex; justify-content:space-between; align-items:center; }
-    .footer-left { font-size:12px; color:#666; }
-    .footer-right { text-align:right; }
-    .total-label { font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:#999; }
-    .total-value { font-size:22px; font-weight:700; color:${project.color}; margin-top:2px; }
-    .total-hours { font-size:13px; font-weight:600; color:#333; }
-    @media print { body { padding:32px; } }
-  </style></head><body>
-  <div class="header">
-    <div>
-      <div class="brand">Time Project</div>
-      <div class="brand-sub">Session Report · ${today}</div>
+  const html = `
+  <div style="font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 12px; color: #1a1a1a; padding: 32px; background:#fff;">
+    <style>
+      .invoice * { margin:0; padding:0; box-sizing:border-box; }
+      .invoice .header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:28px; padding-bottom:18px; border-bottom:2px solid #e5e7eb; }
+      .invoice .brand { font-size:18px; font-weight:700; color:#333; }
+      .invoice .brand-sub { font-size:11px; color:#888; margin-top:2px; }
+      .invoice .project-block { text-align:right; }
+      .invoice .project-name { font-size:20px; font-weight:700; color:${project.color}; }
+      .invoice .project-client { font-size:12px; color:#666; margin-top:2px; }
+      .invoice .meta { display:flex; flex-wrap:wrap; gap:24px; margin-bottom:22px; }
+      .invoice .meta-item label { font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:#999; display:block; }
+      .invoice .meta-item p { font-size:13px; font-weight:600; color:#333; margin-top:2px; }
+      .invoice table { width:100%; border-collapse:collapse; }
+      .invoice thead tr { background:#f8f9fa; }
+      .invoice th { text-align:left; padding:8px 10px; font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:#888; font-weight:600; border-bottom:1px solid #e5e7eb; }
+      .invoice td { padding:8px 10px; border-bottom:1px solid #f3f4f6; color:#333; font-size:11.5px; vertical-align:middle; }
+      .invoice tr:last-child td { border-bottom:none; }
+      .invoice .num { text-align:right; font-variant-numeric:tabular-nums; }
+      .invoice .footer { margin-top:0; padding:14px 12px; background:#f8f9fa; border-top:2px solid #e5e7eb; display:flex; justify-content:space-between; align-items:flex-start; }
+      .invoice .footer-left { font-size:12px; color:#666; }
+      .invoice .footer-right { text-align:right; min-width:200px; }
+      .invoice .total-row { display:flex; justify-content:space-between; gap:16px; font-size:12px; padding:2px 0; }
+      .invoice .total-row.big { font-size:14px; font-weight:700; padding-top:6px; margin-top:6px; border-top:1px solid #e5e7eb; color:${project.color}; }
+      .invoice .label-muted { color:#888; }
+    </style>
+    <div class="invoice">
+      <div class="header">
+        <div>
+          <div class="brand">Time Project</div>
+          <div class="brand-sub">Session Report · ${today}</div>
+        </div>
+        <div class="project-block">
+          <div class="project-name">${project.name}</div>
+          ${project.clientName ? `<div class="project-client">${project.clientName}</div>` : ''}
+        </div>
+      </div>
+      <div class="meta">
+        <div class="meta-item"><label>Period</label><p>${periodLabel}</p></div>
+        <div class="meta-item"><label>Sessions</label><p>${sessions.length}</p></div>
+        <div class="meta-item"><label>Total Hours</label><p>${totalHours.toFixed(2)} h</p></div>
+        ${hourlyRate > 0 ? `<div class="meta-item"><label>Hourly Rate</label><p>${currency}${hourlyRate}</p></div>` : ''}
+        ${project.status ? `<div class="meta-item"><label>Status</label><p>${project.status.charAt(0).toUpperCase() + project.status.slice(1)}</p></div>` : ''}
+      </div>
+      <table>
+        <thead><tr>
+          <th>Date</th>
+          <th class="num">Duration</th>
+          <th>Description</th>
+          ${hourlyRate > 0 ? '<th class="num">Amount</th>' : ''}
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div class="footer">
+        <div class="footer-left">${sessions.length} session${sessions.length !== 1 ? 's' : ''} · ${totalHours.toFixed(2)} h total</div>
+        <div class="footer-right">
+          ${hourlyRate > 0 ? `
+            <div class="total-row"><span class="label-muted">Total Billed</span><span>${currency}${Math.round(totalAmt).toLocaleString()}</span></div>
+            <div class="total-row"><span class="label-muted">Paid</span><span>${currency}${Math.round(totalPaid).toLocaleString()}</span></div>
+            <div class="total-row big"><span>Remaining</span><span>${currency}${Math.round(remaining).toLocaleString()}</span></div>
+          ` : ''}
+        </div>
+      </div>
     </div>
-    <div class="project-block">
-      <div class="project-name">${project.name}</div>
-      ${project.clientName ? `<div class="project-client">${project.clientName}</div>` : ''}
-    </div>
-  </div>
-  <div class="meta">
-    <div class="meta-item"><label>Period</label><p>${periodLabel}</p></div>
-    <div class="meta-item"><label>Sessions</label><p>${sessions.length}</p></div>
-    <div class="meta-item"><label>Total Hours</label><p>${totalHours.toFixed(2)} h</p></div>
-    ${hourlyRate > 0 ? `<div class="meta-item"><label>Hourly Rate</label><p>${currency}${hourlyRate}</p></div>` : ''}
-    ${project.status ? `<div class="meta-item"><label>Status</label><p>${project.status.charAt(0).toUpperCase() + project.status.slice(1)}</p></div>` : ''}
-  </div>
-  <table>
-    <thead><tr>
-      <th>Date</th>
-      <th class="num">Duration</th>
-      <th>Description</th>
-      ${hourlyRate > 0 ? '<th class="num">Amount</th>' : ''}
-    </tr></thead>
-    <tbody>${rows}</tbody>
-  </table>
-  <div class="footer">
-    <div class="footer-left">${sessions.length} session${sessions.length !== 1 ? 's' : ''}</div>
-    <div class="footer-right">
-      <div class="total-hours">${totalHours.toFixed(2)} h total</div>
-      ${hourlyRate > 0 ? `<div class="total-label">Total Amount</div><div class="total-value">${currency}${Math.round(totalAmt).toLocaleString()}</div>` : ''}
-    </div>
-  </div>
-  <script>window.onload = () => { window.print(); }<\/script>
-  </body></html>`;
+  </div>`;
 
-  const w = window.open('', '_blank', 'width=900,height=700');
-  w.document.write(html);
-  w.document.close();
+  const wrapper = document.createElement('div');
+  wrapper.style.position = 'fixed';
+  wrapper.style.left = '-10000px';
+  wrapper.style.top = '0';
+  wrapper.style.width = '794px'; // A4 width @ 96dpi
+  wrapper.innerHTML = html;
+  document.body.appendChild(wrapper);
+
+  try {
+    await html2pdf().from(wrapper).set({
+      filename: `${safeName} - ${periodLabel}.pdf`,
+      margin: [10, 10, 10, 10],
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
+    }).save();
+  } catch (err) {
+    console.error('PDF download error:', err);
+    alert('PDF oluşturulurken bir hata oluştu.');
+  } finally {
+    document.body.removeChild(wrapper);
+  }
 }
 
 // ─── Period Dropdown ──────────────────────────────────────────────────────────
@@ -163,7 +190,7 @@ function PeriodDropdown({ period, onChange }) {
 }
 
 // ─── General Tab ─────────────────────────────────────────────────────────────
-function GeneralTab({ filteredSessions, projects, currency, period }) {
+function GeneralTab({ filteredSessions, projects, payments, currency, period }) {
   const projectStats = useMemo(() =>
     projects
       .map(project => {
@@ -171,11 +198,15 @@ function GeneralTab({ filteredSessions, projects, currency, period }) {
         const ms = calculateTotalDuration(ps);
         const hours = msToHours(ms);
         const billable = hours * (project.hourlyRate || 0);
-        return { project, ms, hours, billable };
+        const paid = payments
+          .filter(pay => pay.projectId === project.id)
+          .reduce((sum, pay) => sum + (pay.amount || 0), 0);
+        const remaining = Math.max(billable - paid, 0);
+        return { project, ms, hours, billable, paid, remaining };
       })
       .filter(ps => ps.ms > 0)
       .sort((a, b) => b.ms - a.ms),
-  [projects, filteredSessions]);
+  [projects, filteredSessions, payments]);
 
   const totalMs       = calculateTotalDuration(filteredSessions);
   const totalBillable = projectStats.reduce((sum, ps) => sum + ps.billable, 0);
@@ -233,16 +264,24 @@ function GeneralTab({ filteredSessions, projects, currency, period }) {
           </div>
         ) : (
           <div className="space-y-1">
-            {projectStats.map(({ project, ms, billable }) => (
+            {projectStats.map(({ project, ms, billable, paid, remaining }) => (
               <div key={project.id} className="rounded-xl p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2 min-w-0 flex-1 mr-3">
+                <div className="flex items-center justify-between mb-2 gap-3">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
                     <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: project.color }} />
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-on-surface truncate">{project.name}</p>
                       <p className="text-xs text-on-surface-variant truncate">
-                        {project.clientName || 'No client'}{project.hourlyRate > 0 && ` · ${currency}${Math.round(billable).toLocaleString()}`}
+                        {project.clientName || 'No client'}
+                        {project.hourlyRate > 0 && ` · ${currency}${Math.round(billable).toLocaleString()} billed`}
                       </p>
+                      {project.hourlyRate > 0 && (
+                        <p className="text-[11px] text-on-surface-variant truncate mt-0.5">
+                          <span className="text-primary font-semibold">{currency}{Math.round(paid).toLocaleString()} paid</span>
+                          <span className="mx-1">·</span>
+                          <span className="font-semibold">{currency}{Math.round(remaining).toLocaleString()} remaining</span>
+                        </p>
+                      )}
                     </div>
                   </div>
                   <span className="text-sm font-bold text-on-surface shrink-0">{formatDurationShort(ms)}</span>
@@ -261,10 +300,11 @@ function GeneralTab({ filteredSessions, projects, currency, period }) {
 
 // ─── Project Tab ─────────────────────────────────────────────────────────────
 const STATUS_LABEL = { active: 'Active', completed: 'Completed', paused: 'Paused' };
-const STATUS_COLOR = { active: 'text-primary bg-primary/10', completed: 'text-on-surface-variant bg-surface-container-high', paused: 'text-tertiary bg-tertiary/10' };
 
-function ProjectTab({ filteredSessions, projects, currency, period }) {
+function ProjectTab({ filteredSessions, projects, payments, currency, period }) {
+  const { addPayment, removePayment } = useApp();
   const [selectedId, setSelectedId] = useState(projects[0]?.id || '');
+  const [paymentOpen, setPaymentOpen] = useState(false);
   const project = projects.find(p => p.id === selectedId);
 
   const projectSessions = useMemo(() =>
@@ -273,10 +313,17 @@ function ProjectTab({ filteredSessions, projects, currency, period }) {
       .sort((a, b) => new Date(b.startTime) - new Date(a.startTime)),
   [filteredSessions, selectedId]);
 
+  const projectPayments = useMemo(
+    () => payments.filter(p => p.projectId === selectedId),
+    [payments, selectedId]
+  );
+
   const totalMs    = calculateTotalDuration(projectSessions);
   const totalHours = totalMs / 3600000;
   const hourlyRate = project?.hourlyRate || 0;
   const totalAmt   = totalHours * hourlyRate;
+  const totalPaid  = projectPayments.reduce((s, p) => s + (p.amount || 0), 0);
+  const remaining  = Math.max(totalAmt - totalPaid, 0);
   const periodLabel = PERIODS.find(p => p.key === period)?.label || 'All Time';
 
   if (projects.length === 0) {
@@ -301,17 +348,22 @@ function ProjectTab({ filteredSessions, projects, currency, period }) {
           >
             {projects.map(p => (
               <option key={p.id} value={p.id}>
-                {p.name}{p.clientName ? ` — ${p.clientName}` : ''} [{STATUS_LABEL[p.status] || p.status}]
+                {p.name}{p.clientName ? ` — ${p.clientName}` : ''} · {STATUS_LABEL[p.status] || p.status}
               </option>
             ))}
           </select>
           <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 material-symbols-outlined text-[18px] text-on-surface-variant">expand_more</span>
         </div>
-        {/* Status badge */}
+        {/* Payment button (replaces status badge) */}
         {project && (
-          <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${STATUS_COLOR[project.status] || ''}`}>
-            {STATUS_LABEL[project.status] || project.status}
-          </span>
+          <button
+            onClick={() => setPaymentOpen(true)}
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary bg-primary/10 hover:bg-primary/20 px-3 py-2 rounded-full transition-colors"
+            title="Record a payment"
+          >
+            <span className="material-symbols-outlined text-[16px]">payments</span>
+            Payment
+          </button>
         )}
       </div>
 
@@ -332,7 +384,7 @@ function ProjectTab({ filteredSessions, projects, currency, period }) {
             </div>
             {projectSessions.length > 0 && (
               <button
-                onClick={() => printProjectInvoice(project, projectSessions, currency, periodLabel)}
+                onClick={() => downloadProjectInvoice(project, projectSessions, currency, periodLabel, projectPayments)}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-primary text-on-primary hover:bg-primary/90 transition-all shadow-sm shrink-0"
                 title="Save as PDF"
               >
@@ -392,28 +444,53 @@ function ProjectTab({ filteredSessions, projects, currency, period }) {
             </div>
 
             {/* Footer */}
-            <div className="border-t-2 border-outline-variant/30 px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-surface-container/40">
+            <div className="border-t-2 border-outline-variant/30 px-5 py-4 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 bg-surface-container/40">
               <div className="flex items-center gap-4 text-sm text-on-surface-variant">
                 <span><span className="font-semibold text-on-surface">{projectSessions.length}</span> sessions</span>
                 <span className="font-bold font-mono-tabular text-on-surface">{toDecimalHours(totalMs)}</span>
               </div>
               {hourlyRate > 0 && (
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-on-surface-variant uppercase tracking-wider font-semibold">Total</span>
-                  <span className="text-xl font-bold text-primary">{currency}{Math.round(totalAmt).toLocaleString()}</span>
+                <div className="text-right space-y-0.5 min-w-[180px]">
+                  <div className="flex items-center justify-between gap-4 text-xs">
+                    <span className="text-on-surface-variant">Total Billed</span>
+                    <span className="font-semibold text-on-surface font-mono-tabular">{currency}{Math.round(totalAmt).toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4 text-xs">
+                    <span className="text-on-surface-variant">Paid</span>
+                    <span className="font-semibold text-on-surface font-mono-tabular">{currency}{Math.round(totalPaid).toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4 pt-1 mt-1 border-t border-outline-variant/30">
+                    <span className="text-xs uppercase tracking-wider font-semibold text-on-surface-variant">Remaining</span>
+                    <span className="text-lg font-bold text-primary font-mono-tabular">{currency}{Math.round(remaining).toLocaleString()}</span>
+                  </div>
                 </div>
               )}
             </div>
           </>
         )}
       </div>
+
+      {/* Payment Modal */}
+      {paymentOpen && project && (
+        <PaymentModal
+          project={project}
+          totalBilled={totalAmt}
+          totalPaid={totalPaid}
+          payments={projectPayments}
+          onClose={() => setPaymentOpen(false)}
+          onSubmit={({ amount, note }) => {
+            addPayment({ projectId: project.id, amount, note });
+          }}
+          onDelete={(id) => removePayment(id)}
+        />
+      )}
     </div>
   );
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function ReportsPage() {
-  const { projects, sessions, settings } = useApp();
+  const { projects, sessions, settings, payments = [] } = useApp();
   const currency = settings.currency || '₺';
 
   const [activeTab, setActiveTab] = useState('general');
@@ -457,8 +534,8 @@ export default function ReportsPage() {
       {/* Tab Content */}
       <div className="animate-fade-in">
         {activeTab === 'general'
-          ? <GeneralTab filteredSessions={filteredSessions} projects={projects} currency={currency} period={period} />
-          : <ProjectTab filteredSessions={filteredSessions} projects={projects} currency={currency} period={period} />
+          ? <GeneralTab filteredSessions={filteredSessions} projects={projects} payments={payments} currency={currency} period={period} />
+          : <ProjectTab filteredSessions={filteredSessions} projects={projects} payments={payments} currency={currency} period={period} />
         }
       </div>
     </div>

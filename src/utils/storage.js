@@ -6,6 +6,7 @@ const STORAGE_KEYS = {
   ACTIVE_SESSION: 'terra_time_active_session',
   SETTINGS: 'terra_time_settings',
   TASKS: 'terra_time_tasks',
+  PAYMENTS: 'terra_time_payments',
 };
 
 // Güvenli parse
@@ -123,6 +124,15 @@ export function getSessionsByProject(projectId) {
   return getSessions()
     .filter(s => s.projectId === projectId)
     .sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
+}
+
+// ─── Payments ────────────────────────────────────────
+export function getPayments() {
+  return safeParse(STORAGE_KEYS.PAYMENTS, []);
+}
+
+export function savePayments(payments) {
+  safeSet(STORAGE_KEYS.PAYMENTS, payments);
 }
 
 // ─── Active Session ──────────────────────────────────

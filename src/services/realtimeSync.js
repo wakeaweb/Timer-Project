@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase';
-import { fromDbProject, fromDbSession, fromDbTask } from './api';
+import { fromDbProject, fromDbSession, fromDbTask, fromDbPayment } from './api';
 
 /**
  * Supabase Realtime subscription — başka cihazdan yapılan değişiklikleri anlık yansıtır.
@@ -78,6 +78,29 @@ export function subscribeToChanges(userId, dispatch) {
       { event: 'DELETE', schema: 'public', table: 'tasks', filter: `user_id=eq.${userId}` },
       ({ old: row }) => {
         dispatch({ type: 'REMOTE_DELETE_TASK', payload: row.id });
+      }
+    )
+
+    // ─── Payments ────────────────────────────────────────────────────
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'payments', filter: `user_id=eq.${userId}` },
+      ({ new: row }) => {
+        dispatch({ type: 'REMOTE_UPSERT_PAYMENT', payload: fromDbPayment(row) });
+      }
+    )
+    .on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'payments', filter: `user_id=eq.${userId}` },
+      ({ new: row }) => {
+        dispatch({ type: 'REMOTE_UPSERT_PAYMENT', payload: fromDbPayment(row) });
+      }
+    )
+    .on(
+      'postgres_changes',
+      { event: 'DELETE', schema: 'public', table: 'payments', filter: `user_id=eq.${userId}` },
+      ({ old: row }) => {
+        dispatch({ type: 'REMOTE_DELETE_PAYMENT', payload: row.id });
       }
     )
 
