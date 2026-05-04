@@ -1,6 +1,24 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import html2pdf from 'html2pdf.js';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
+
+const isNativePlatform = () =>
+  window.location.protocol === 'capacitor:' || window.location.protocol === 'file:';
+
+// Blob → base64 (data URI önekini at, sadece raw data döner)
+const blobToBase64 = (blob) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result || '';
+      const idx = result.indexOf(',');
+      resolve(idx >= 0 ? result.slice(idx + 1) : result);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
 import { useApp } from '../context/AppContext';
 import StatCard from '../components/StatCard';
 import BarChart from '../components/BarChart';
@@ -163,9 +181,11 @@ async function downloadProjectInvoice(project, sessions, currency, periodLabel, 
   // Layout'un tamamlanması için bir frame bekle
   await new Promise(r => requestAnimationFrame(() => r()));
 
+  const filename = `${safeName} - ${periodLabel}.pdf`;
+
   try {
-    await html2pdf().from(wrapper.firstElementChild).set({
-      filename: `${safeName} - ${periodLabel}.pdf`,
+    const worker = html2pdf().from(wrapper.firstElementChild).set({
+      filename,
       margin: [10, 10, 10, 10],
       image: { type: 'jpeg', quality: 0.98 },
       html2canvas: {
@@ -177,7 +197,35 @@ async function downloadProjectInvoice(project, sessions, currency, periodLabel, 
       },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
       pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
-    }).save();
+    });
+
+    if (isNativePlatform()) {
+      // Mobile (Android/iOS): blob al → cache'e yaz → paylaş sheet aç
+      const blob = await worker.outputPdf('blob');
+      const base64 = await blobToBase64(blob);
+      const safeFile = filename.replace(/[\\/:*?"<>|]/g, '_');
+      const writeRes = await Filesystem.writeFile({
+        path: safeFile,
+        data: base64,
+        directory: Directory.Cache,
+      });
+      try {
+        await Share.share({
+          title: filename,
+          text: 'Project Report',
+          url: writeRes.uri,
+          dialogTitle: 'PDF Paylaş',
+        });
+      } catch (shareErr) {
+        // Kullanıcı dialog'u kapattıysa hata atma
+        if (!String(shareErr?.message || '').toLowerCase().includes('cancel')) {
+          console.warn('Share error:', shareErr);
+        }
+      }
+    } else {
+      // Web: doğrudan download
+      await worker.save();
+    }
   } catch (err) {
     console.error('PDF download error:', err);
     alert('PDF oluşturulurken bir hata oluştu: ' + (err?.message || err));
