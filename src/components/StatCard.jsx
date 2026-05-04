@@ -55,7 +55,7 @@ export default function StatCard({
         )}
       </div>
       <p
-        className={`font-headline text-[2rem] font-bold leading-tight mt-1 ${
+        className={`font-headline text-2xl lg:text-[1.6rem] font-bold leading-tight mt-1 ${
           highlight ? 'text-on-primary' : 'text-on-surface'
         }`}
       >
