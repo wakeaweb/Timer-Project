@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useReducer, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from './AuthContext';
 import { projectsApi, sessionsApi, tasksApi, settingsApi, paymentsApi } from '../services/api';
-import { subscribeToChanges } from '../services/realtimeSync';
 import {
   getProjects, saveProjects, 
   getSessions, saveSessions, 
@@ -223,9 +222,18 @@ export function AppProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState);
   const { user, isAuthenticated } = useAuth();
   const syncTimeoutRef = useRef(null);
-  // Yakın zamanda silinen ID'ler — realtime echo'sunun ya da uçuştaki upsert'in
+  // Yakın zamanda silinen ID'ler — uçuştaki upsert'in
   // kaydı geri canlandırmasını engellemek için kullanılır.
   const recentlyDeletedRef = useRef(new Map()); // id -> timeoutId
+  // Supabase'e en son sync edilen veri snapshot'ı — diff-based sync için.
+  // Bu sayede her state değişiminde tüm tabloyu değil, sadece değişen satırları gönderiyoruz.
+  const prevSyncedRef = useRef({
+    projects: [],
+    sessions: [],
+    tasks: [],
+    payments: [],
+    settings: null,
+  });
 
   const markDeleted = useCallback((id) => {
     if (!id) return;
@@ -234,6 +242,75 @@ export function AppProvider({ children }) {
     const t = setTimeout(() => recentlyDeletedRef.current.delete(id), 8000);
     recentlyDeletedRef.current.set(id, t);
   }, []);
+
+  // Supabase'den tüm veriyi çek + state'i replace et + sync snapshot'ı tazele.
+  // Hem ilk yüklemede hem de manuel "yenile" butonunda çağrılır.
+  const refreshFromSupabase = useCallback(async () => {
+    if (!isAuthenticated || !user) return;
+
+    dispatch({ type: 'SET_SYNCING', payload: true });
+    try {
+      const localActive = getActiveSession();
+      const localSettings = getSettings();
+
+      const [sbProjects, sbSessions, sbTasks, sbPayments, sbSettings] = await Promise.all([
+        projectsApi.fetchAll(user.id),
+        sessionsApi.fetchAll(user.id),
+        tasksApi.fetchAll(user.id),
+        paymentsApi.fetchAll(user.id).catch(() => []),
+        settingsApi.fetch(user.id),
+      ]);
+
+      const activeId = localActive?.sessionId;
+      const orphanSessions = sbSessions.filter(s => !s.endTime && s.id !== activeId);
+      const healedSessions = sbSessions.map(s => {
+        if (s.endTime || s.id === activeId) return s;
+        const startMs = new Date(s.startTime).getTime();
+        const dur = s.duration || 0;
+        return { ...s, endTime: new Date(startMs + dur).toISOString(), duration: dur };
+      });
+
+      const nextSettings = sbSettings || localSettings;
+
+      dispatch({
+        type: 'INIT',
+        payload: {
+          projects: sbProjects,
+          sessions: healedSessions,
+          tasks: sbTasks,
+          payments: sbPayments,
+          settings: nextSettings,
+          activeSession: localActive,
+        },
+      });
+
+      // Sync snapshot'ı server verisine eşitle — bir sonraki debounced sync diff alırken
+      // bütün tabloyu yeniden upsert etmesin.
+      prevSyncedRef.current = {
+        projects: sbProjects,
+        sessions: healedSessions,
+        tasks: sbTasks,
+        payments: sbPayments,
+        settings: nextSettings,
+      };
+
+      if (orphanSessions.length > 0) {
+        const fixed = orphanSessions.map(s => {
+          const startMs = new Date(s.startTime).getTime();
+          const dur = s.duration || 0;
+          return { ...s, endTime: new Date(startMs + dur).toISOString(), duration: dur };
+        });
+        try {
+          await sessionsApi.upsert(fixed, user.id);
+          console.log(`Auto-healed ${fixed.length} orphan session(s)`);
+        } catch (e) { console.error('Orphan heal error:', e); }
+      }
+    } catch (error) {
+      console.error('Supabase fetch error:', error);
+    } finally {
+      dispatch({ type: 'SET_SYNCING', payload: false });
+    }
+  }, [isAuthenticated, user]);
 
   // Uygulama başladığında ve kullanıcı değiştiğinde verileri yükle
   useEffect(() => {
@@ -258,85 +335,23 @@ export function AppProvider({ children }) {
         },
       });
 
-      // 2. Online ise Supabase'den çek (doğru mapping ile)
+      // local INIT sonrası snapshot'ı local'e eşitle — auth yoksa diff sync devre dışı kalır.
+      prevSyncedRef.current = {
+        projects: localProjects,
+        sessions: localSessions,
+        tasks: localTasks,
+        payments: localPayments,
+        settings: localSettings,
+      };
+
+      // 2. Online ise Supabase'den tazele (server-wins)
       if (isAuthenticated && user) {
-        dispatch({ type: 'SET_SYNCING', payload: true });
-        try {
-          const [sbProjects, sbSessions, sbTasks, sbPayments, sbSettings] = await Promise.all([
-            projectsApi.fetchAll(user.id),
-            sessionsApi.fetchAll(user.id),
-            tasksApi.fetchAll(user.id),
-            paymentsApi.fetchAll(user.id).catch(() => []),
-            settingsApi.fetch(user.id),
-          ]);
-
-          const mergedSessions = sbSessions.length > 0 ? sbSessions : localSessions;
-          const activeId = localActive?.sessionId;
-          const orphanSessions = mergedSessions.filter(
-            s => !s.endTime && s.id !== activeId
-          );
-          const healedSessions = mergedSessions.map(s => {
-            if (s.endTime || s.id === activeId) return s;
-            const startMs = new Date(s.startTime).getTime();
-            const dur = s.duration || 0;
-            return { ...s, endTime: new Date(startMs + dur).toISOString(), duration: dur };
-          });
-
-          dispatch({
-            type: 'INIT',
-            payload: {
-              projects: sbProjects.length > 0 ? sbProjects : localProjects,
-              sessions: healedSessions,
-              tasks: sbTasks.length > 0 ? sbTasks : localTasks,
-              payments: sbPayments.length > 0 ? sbPayments : localPayments,
-              settings: sbSettings || localSettings,
-              activeSession: localActive,
-            },
-          });
-
-          if (orphanSessions.length > 0) {
-            const fixed = orphanSessions.map(s => {
-              const startMs = new Date(s.startTime).getTime();
-              const dur = s.duration || 0;
-              return { ...s, endTime: new Date(startMs + dur).toISOString(), duration: dur };
-            });
-            try {
-              await sessionsApi.upsert(fixed, user.id);
-              console.log(`Auto-healed ${fixed.length} orphan session(s)`);
-            } catch (e) { console.error('Orphan heal error:', e); }
-          }
-        } catch (error) {
-          console.error('Supabase fetch error:', error);
-        } finally {
-          dispatch({ type: 'SET_SYNCING', payload: false });
-        }
+        await refreshFromSupabase();
       }
     };
 
     initData();
-  }, [isAuthenticated, user]);
-
-  // Realtime subscription'ı başlat
-  useEffect(() => {
-    if (isAuthenticated && user) {
-      // Echo guard: yakın zamanda silinen kayıtların REMOTE_UPSERT echo'sunu yoksay
-      const guardedDispatch = (action) => {
-        if (
-          (action.type === 'REMOTE_UPSERT_TASK' ||
-            action.type === 'REMOTE_UPSERT_SESSION' ||
-            action.type === 'REMOTE_UPSERT_PROJECT' ||
-            action.type === 'REMOTE_UPSERT_PAYMENT') &&
-          action.payload?.id &&
-          recentlyDeletedRef.current.has(action.payload.id)
-        ) {
-          return;
-        }
-        dispatch(action);
-      };
-      const unsubscribe = subscribeToChanges(user.id, guardedDispatch);
-      return () => unsubscribe();
-    }
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user, refreshFromSupabase]);
 
   // Bildirim izinlerini al
   useEffect(() => {
@@ -363,29 +378,73 @@ export function AppProvider({ children }) {
       if (state.activeSession) setActiveSession(state.activeSession);
       else clearActiveSession();
 
-      // Supabase'e debounced sync (doğru mapping ile)
+      // Supabase'e debounced + diff-based sync — sadece değişen satırları gönder.
       if (isAuthenticated && user) {
         if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
         syncTimeoutRef.current = setTimeout(async () => {
           dispatch({ type: 'SET_SYNCING', payload: true });
           try {
-            // Recently deleted ID'leri payload'dan filtrele — bu, t=0'da
-            // schedule edilmiş upsert'in t=1500'da çalışırken closure'daki
-            // eski state'i kullanıp silinmiş kaydı diriltmesini engeller.
             const notDeleted = (item) => !recentlyDeletedRef.current.has(item.id);
-            await Promise.all([
-              projectsApi.upsert(state.projects.filter(notDeleted), user.id),
-              sessionsApi.upsert(state.sessions.filter(notDeleted), user.id),
-              tasksApi.upsert(state.tasks.filter(notDeleted), user.id),
-              paymentsApi.upsert(state.payments.filter(notDeleted), user.id).catch(e => console.error('Payments sync error:', e)),
-              settingsApi.upsert(state.settings, user.id),
-            ]);
+            const snap = prevSyncedRef.current;
+
+            // Bir kind için (kind: 'projects'|'sessions'|'tasks'|'payments') diff hesapla.
+            const diff = (key) => {
+              const current = state[key].filter(notDeleted);
+              const prev = snap[key] || [];
+              const prevById = new Map(prev.map(r => [r.id, r]));
+              const currentIds = new Set(current.map(r => r.id));
+              // upsert: yeni veya JSON shape'i değişmiş satırlar
+              const changed = current.filter(r => {
+                const p = prevById.get(r.id);
+                return !p || JSON.stringify(p) !== JSON.stringify(r);
+              });
+              // delete: snapshot'ta vardı, şu an yok ve recentlyDeleted'a düşmüş
+              const removedIds = prev
+                .map(r => r.id)
+                .filter(id => !currentIds.has(id));
+              return { changed, removedIds, current };
+            };
+
+            const projectsDiff = diff('projects');
+            const sessionsDiff = diff('sessions');
+            const tasksDiff = diff('tasks');
+            const paymentsDiff = diff('payments');
+
+            const settingsChanged =
+              JSON.stringify(snap.settings) !== JSON.stringify(state.settings);
+
+            const ops = [];
+            if (projectsDiff.changed.length) ops.push(projectsApi.upsert(projectsDiff.changed, user.id));
+            if (sessionsDiff.changed.length) ops.push(sessionsApi.upsert(sessionsDiff.changed, user.id));
+            if (tasksDiff.changed.length) ops.push(tasksApi.upsert(tasksDiff.changed, user.id));
+            if (paymentsDiff.changed.length)
+              ops.push(paymentsApi.upsert(paymentsDiff.changed, user.id).catch(e => console.error('Payments sync error:', e)));
+            if (settingsChanged) ops.push(settingsApi.upsert(state.settings, user.id));
+
+            // Silinenler — tek tek delete. Hata olursa diğerleri etkilenmesin.
+            for (const id of projectsDiff.removedIds) ops.push(projectsApi.remove(id).catch(e => console.error('Project remove error:', e)));
+            for (const id of sessionsDiff.removedIds) ops.push(sessionsApi.remove(id).catch(e => console.error('Session remove error:', e)));
+            for (const id of tasksDiff.removedIds) ops.push(tasksApi.remove(id).catch(e => console.error('Task remove error:', e)));
+            for (const id of paymentsDiff.removedIds) ops.push(paymentsApi.remove(id).catch(e => console.error('Payment remove error:', e)));
+
+            if (ops.length === 0) return; // değişiklik yoksa hiç yazmayalım
+
+            await Promise.all(ops);
+
+            // Başarılı sync sonrası snapshot'ı güncelle.
+            prevSyncedRef.current = {
+              projects: projectsDiff.current,
+              sessions: sessionsDiff.current,
+              tasks: tasksDiff.current,
+              payments: paymentsDiff.current,
+              settings: state.settings,
+            };
           } catch (err) {
             console.error('Sync error:', err);
           } finally {
             dispatch({ type: 'SET_SYNCING', payload: false });
           }
-        }, 1500); // 1.5 saniye debounce
+        }, 5000); // 5 saniye debounce — hızlı ardışık değişiklikleri tek pakete birleştir
       }
     }
   }, [state.projects, state.sessions, state.tasks, state.payments, state.settings, state.activeSession, state.isInitialized, isAuthenticated, user]);
@@ -644,6 +703,7 @@ export function AppProvider({ children }) {
     addPayment,
     removePayment,
     updateSettings,
+    refreshFromSupabase,
     dispatch,
   };
 

@@ -3,11 +3,12 @@ import { Outlet } from 'react-router-dom';
 import SideNavBar from './SideNavBar';
 import MobileBottomNav from './MobileBottomNav';
 import ActiveTimerBanner from './ActiveTimerBanner';
-import ThemeToggle from './ThemeToggle';
 import AutoPipController from './AutoPipController';
+import { useApp } from '../context/AppContext';
 
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { refreshFromSupabase, isSyncing } = useApp();
 
   return (
     <div className="min-h-screen bg-background">
@@ -43,7 +44,19 @@ export default function Layout() {
             <span className="font-headline text-base font-semibold text-primary">Time Project</span>
           </div>
           <div className="flex items-center">
-            <ThemeToggle />
+            <button
+              onClick={refreshFromSupabase}
+              disabled={isSyncing}
+              className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-high transition-colors disabled:opacity-60"
+              aria-label="Yenile"
+              title="Buluttan yenile"
+            >
+              <span
+                className={`material-symbols-outlined text-on-surface ${isSyncing ? 'animate-spin' : ''}`}
+              >
+                sync
+              </span>
+            </button>
           </div>
         </header>
 

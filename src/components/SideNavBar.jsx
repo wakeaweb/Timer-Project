@@ -12,7 +12,7 @@ const navItems = [
 ];
 
 export default function SideNavBar({ mobileOpen, onClose }) {
-  const { settings, isSyncing } = useApp();
+  const { settings, isSyncing, refreshFromSupabase } = useApp();
   const { signOut, user } = useAuth();
   const navigate = useNavigate();
 
@@ -128,6 +128,15 @@ export default function SideNavBar({ mobileOpen, onClose }) {
             </div>
           </div>
           <div className="flex items-center gap-1">
+            <button
+              onClick={refreshFromSupabase}
+              disabled={isSyncing}
+              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-container-high text-on-surface-variant transition-colors disabled:opacity-60"
+              title="Buluttan yenile"
+              aria-label="Yenile"
+            >
+              <span className={`material-symbols-outlined text-[20px] ${isSyncing ? 'animate-spin' : ''}`}>sync</span>
+            </button>
             <ThemeToggle />
             <button
               onClick={handleLogout}
