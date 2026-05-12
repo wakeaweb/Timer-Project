@@ -34,6 +34,7 @@ export default function SideNavBar({ mobileOpen, onClose }) {
     <aside
       className={`
         fixed left-0 top-0 h-screen w-[240px] bg-surface-container-low border-r border-outline-variant/30 flex flex-col z-50
+        pb-20 lg:pb-0
         transition-transform duration-300 ease-in-out
         ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
         lg:translate-x-0
